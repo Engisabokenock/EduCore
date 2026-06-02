@@ -23,6 +23,13 @@ MIDDLEWARE += [
     'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
+# Ensure debug_toolbar is importable (Railway production won't have it installed)
+try:
+    import debug_toolbar  # noqa: F401
+except ImportError:
+    INSTALLED_APPS = [a for a in INSTALLED_APPS if a != 'debug_toolbar']
+    MIDDLEWARE = [m for m in MIDDLEWARE if m != 'debug_toolbar.middleware.DebugToolbarMiddleware']
+
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 LOGGING = {
