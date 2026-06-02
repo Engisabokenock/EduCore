@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/logs /app/staticfiles /app/media_files
+RUN mkdir -p /app/logs /app/staticfiles /app/media_files && \
+    chmod +x /app/start.sh
 
 EXPOSE 8000
+
+CMD ["/bin/sh", "/app/start.sh"]

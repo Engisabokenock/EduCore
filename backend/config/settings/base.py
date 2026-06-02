@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -89,6 +90,18 @@ DATABASES = {
         },
     }
 }
+
+_database_url = os.environ.get('DATABASE_URL', '')
+if _database_url:
+    try:
+        import dj_database_url
+        DATABASES['default'] = dj_database_url.parse(
+            _database_url,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    except Exception:
+        pass
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
