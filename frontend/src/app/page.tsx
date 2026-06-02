@@ -222,11 +222,15 @@ export default async function HomePage() {
       <nav className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-2" aria-label="EduCore home">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary-800 text-white">
-                <BookOpen className="h-5 w-5" />
-              </span>
-              <span className="text-xl font-extrabold text-gray-900 tracking-tight">EduCore</span>
+            <Link href="/" aria-label="EduCore home">
+              <Image
+                src="/logos/educore-logo.svg"
+                alt="EduCore — CBC Learning Made Simple"
+                width={160}
+                height={42}
+                priority
+                className="h-10 w-auto"
+              />
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <Link href="/grades" className="text-sm font-medium text-gray-600 hover:text-primary-800">
@@ -617,12 +621,15 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
             <div>
-              <div className="flex items-center gap-2 text-white mb-3">
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/10">
-                  <BookOpen className="h-5 w-5" />
-                </span>
-                <span className="text-lg font-extrabold text-white">EduCore</span>
-              </div>
+              <div className="mb-4">
+              <Image
+                src="/logos/educore-logo-white.svg"
+                alt="EduCore"
+                width={148}
+                height={38}
+                className="h-9 w-auto"
+              />
+            </div>
               <p className="text-sm text-white/60 leading-relaxed">
                 Kenya’s trusted CBC revision platform. Built for learners, teachers and parents.
               </p>
