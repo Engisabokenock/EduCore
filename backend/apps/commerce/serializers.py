@@ -19,6 +19,49 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 class InitiatePaymentSerializer(serializers.Serializer):
     plan_id = serializers.UUIDField()
+    phone = serializers.CharField(max_length=20)
+
+
+class CouponValidateSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    plan_id = serializers.UUIDField()
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            "id", "amount", "currency", "gateway", "status",
+            "plan_name", "paid_at", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class PaymentAdminSerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            "id", "amount", "currency", "gateway", "status",
+            "reference", "transaction_id", "phone_number",
+            "plan_name", "paid_at", "error_message", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class PaymentStatusSerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            "id", "reference", "status", "gateway",
+            "amount", "currency", "paid_at", "plan_name", "created_at",
+        ]
+        read_only_fields = fields    plan_id = serializers.UUIDField()
     phone_number = serializers.CharField(max_length=20)
     coupon_code = serializers.CharField(required=False, allow_blank=True)
 

@@ -9,7 +9,40 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-key-change-in-produ
 
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS if h.strip()]
+
+
+def _host_is_allowed(host: str) -> bool:
+    if not host:
+        return False
+    h = host.lower()
+    for allowed in ALLOWED_HOSTS:
+        a = allowed.lower()
+        if a == h:
+            return True
+        if a.startswith('.') and (h == a[1:] or h.endswith(a)):
+            return True
+    return False
+
+
+def _dynamic_allowed_hosts(get_response):
+    from django.http import HttpResponse
+    from django.utils.deprecation import MiddlewareMixin
+
+    class DynamicHostMiddleware(MiddlewareMixin):
+        def process_request(self, request):
+            host = request.get_host().split(':')[0]
+            if not _host_is_allowed(host):
+                ALLOWED_HOSTS.append(host)
+    return get_response
+
+
+# Allow dynamic Railway/Render/Fly host headers
+import re
+_ALLOWED_DYNAMIC = os.environ.get('ALLOWED_DYNAMIC_HOSTS', 'True').lower() == 'true'
+if _ALLOWED_DYNAMIC:
+    MIDDLEWARE.insert(0, 'config.middleware.DynamicHostMiddleware')
 
 AUTH_USER_MODEL = 'accounts.User'
 

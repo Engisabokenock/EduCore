@@ -147,3 +147,18 @@ class RequestLoggingMiddleware(MiddlewareMixin):
                 duration,
             )
         return response
+
+
+class DynamicHostMiddleware(MiddlewareMixin):
+    """Auto-allow Railway/Render/Fly dynamic host headers so /health/ and API stay reachable."""
+
+    _DYNAMIC_SUFFIXES = (".railway.app", ".up.railway.app", ".onrender.com", ".fly.dev")
+
+    def process_request(self, request):
+        host = request.get_host().split(":")[0]
+        if not host:
+            return None
+        if any(host.endswith(s) for s in self._DYNAMIC_SUFFIXES):
+            if host not in settings.ALLOWED_HOSTS:
+                settings.ALLOWED_HOSTS.append(host)
+        return None
