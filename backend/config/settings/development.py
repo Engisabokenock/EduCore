@@ -14,14 +14,17 @@ INTERNAL_IPS = [
     '[::1]',
 ]
 
-INSTALLED_APPS += [
-    'debug_toolbar',
-    'django_extensions',
-]
-
-MIDDLEWARE += [
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
-]
+try:
+    import debug_toolbar
+    INSTALLED_APPS += [
+        'debug_toolbar',
+        'django_extensions',
+    ]
+    MIDDLEWARE += [
+        'debug_toolbar.middleware.DebugToolbarMiddleware',
+    ]
+except ImportError:
+    pass
 
 # Ensure debug_toolbar is importable (Railway production won't have it installed)
 try:
