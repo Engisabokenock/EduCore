@@ -233,6 +233,9 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
 
+# dj-rest-auth + django-allauth: JWT-only auth (no DRF TokenModel)
+DJ_REST_AUTH_TOKEN_MODEL = None
+
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
 if not CORS_ALLOWED_ORIGINS or CORS_ALLOWED_ORIGINS == ['']:
     if DEBUG:
