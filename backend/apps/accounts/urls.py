@@ -13,4 +13,8 @@ urlpatterns = [
     path("change-password/", views.change_password_view, name="auth-change-password"),
     path("forgot-password/", views.forgot_password_view, name="auth-forgot-password"),
     path("reset-password/", views.reset_password_view, name="auth-reset-password"),
+    path("phone/request-otp/", views.phone_request_otp, name="auth-phone-request-otp"),
+    path("phone/verify-otp/", views.phone_verify_otp, name="auth-phone-verify-otp"),
+    path("phone/signup/", views.phone_signup, name="auth-phone-signup"),
+    path("google/", views.google_auth, name="auth-google"),
 ]

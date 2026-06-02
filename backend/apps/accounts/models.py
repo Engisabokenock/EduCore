@@ -1,6 +1,8 @@
 """
 Accounts app models: custom User, Profile.
 """
+import random
+import string
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -10,12 +12,18 @@ from core.models import TimeStampedModel
 
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError("Email is required")
-        email = self.normalize_email(email)
+    def create_user(self, email=None, phone=None, password=None, **extra_fields):
+        if not email and not phone:
+            raise ValueError("Either email or phone is required")
+        if email:
+            email = self.normalize_email(email)
+            extra_fields.setdefault("email", email)
+        if phone:
+            extra_fields.setdefault("phone", phone)
         extra_fields.setdefault("is_active", True)
-        user = self.model(email=email, **extra_fields)
+        if not extra_fields.get("password"):
+            password = self.make_random_password(length=12)
+        user = self.model(**extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -24,7 +32,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("role", User.Role.ADMIN)
-        return self.create_user(email, password, **extra_fields)
+        return self.create_user(email=email, password=password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
@@ -122,3 +130,24 @@ class PasswordResetToken(models.Model):
 
     def is_valid(self):
         return not self.used and self.expires_at > timezone.now()
+
+
+class PhoneOTPToken(models.Model):
+    phone = models.CharField(max_length=20, db_index=True)
+    otp = models.CharField(max_length=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    device_info = models.CharField(max_length=200, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        db_table = "accounts_phone_otp_tokens"
+        ordering = ["-created_at"]
+
+    def is_valid(self):
+        return not self.used and self.expires_at > timezone.now()
+
+    @staticmethod
+    def generate_otp(length=6):
+        return "".join(random.choices(string.digits, k=length))

@@ -1,9 +1,11 @@
 """Accounts serializers."""
+import random
+import string
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User, Profile, PasswordResetToken
+from .models import User, Profile, PasswordResetToken, EmailVerificationToken, PhoneOTPToken
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -39,6 +41,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs["password"] != attrs.pop("password_confirm"):
             raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        if not attrs.get("email") and not attrs.get("phone"):
+            raise serializers.ValidationError("Email or phone is required.")
         return attrs
 
     def create(self, validated_data):
@@ -46,6 +50,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         Profile.objects.create(user=user)
         return user
+
+
+class PhoneSignupSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, min_length=8, required=False)
+    auth_provider = serializers.CharField(default="phone")
+
+
+class PhoneLoginSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+
+
+class OTPVerifySerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+    otp = serializers.CharField(min_length=4, max_length=8)
+    device_info = serializers.CharField(required=False, allow_blank=True)
+
+
+class GoogleAuthSerializer(serializers.Serializer):
+    access_token = serializers.CharField()
+    device_info = serializers.CharField(required=False, allow_blank=True)
 
 
 class LoginSerializer(serializers.Serializer):
@@ -68,7 +95,7 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password_confirm = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        if attrs["new_password"] != attrs["new_password_confirm"]:
+        if attrs["new_password"] != attrs.pop("new_password_confirm"):
             raise serializers.ValidationError({"new_password_confirm": "Passwords do not match."})
         return attrs
 
@@ -83,7 +110,7 @@ class ResetPasswordSerializer(serializers.Serializer):
     new_password_confirm = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        if attrs["new_password"] != attrs["new_password_confirm"]:
+        if attrs["new_password"] != attrs.pop("new_password_confirm"):
             raise serializers.ValidationError({"new_password_confirm": "Passwords do not match."})
         try:
             reset_token = PasswordResetToken.objects.get(token=attrs["token"])
@@ -113,3 +140,6 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
                 setattr(profile, attr, value)
             profile.save()
         return instance
+
+
+# ── Phone OTP helpers (model lives in models.py) ─────────────────────────────
