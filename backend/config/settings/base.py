@@ -157,18 +157,32 @@ MEDIA_SIGNING_SECRET = os.environ.get('MEDIA_SIGNING_SECRET', os.environ.get('DJ
 MEDIA_SIGNED_URL_TTL = int(os.environ.get('MEDIA_SIGNED_URL_TTL', '30'))
 API_RESPONSE_COMPRESSION_THRESHOLD = int(os.environ.get('API_RESPONSE_COMPRESSION_THRESHOLD', '500'))
 
-if CACHED_LOADER_ENABLED:
-    TEMPLATES[0]['OPTIONS']['loaders'] = [
-        ('django.template.loaders.cached.Loader', [
-            'django.template.loaders.filesystem.Loader',
-            'django.template.loaders.app_directories.Loader',
-        ]),
-    ]
-else:
-    TEMPLATES[0]['OPTIONS']['loaders'] = [
+_template_loaders = [
+    ('django.template.loaders.cached.Loader', [
         'django.template.loaders.filesystem.Loader',
         'django.template.loaders.app_directories.Loader',
-    ]
+    ]),
+] if CACHED_LOADER_ENABLED else [
+    'django.template.loaders.filesystem.Loader',
+    'django.template.loaders.app_directories.Loader',
+]
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+            'loaders': _template_loaders,
+        },
+    },
+]
 
 LOGGING = {
     'version': 1,
