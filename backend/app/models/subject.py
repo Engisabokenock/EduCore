@@ -1,0 +1,1 @@
+"""Subject ORM model."""

@@ -1,87 +1,39 @@
-version: "3.9"
+version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+  api:
+    build: .
+    ports:
+      - "8000:8000"
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-educore}
-      POSTGRES_USER: ${POSTGRES_USER:-educore}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-educore_pass}
+      - APP_ENV=development
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/educore
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=prod_fallback_secret_signing_key_string_09871234
+      - JWT_SECRET_KEY=prod_fallback_secret_signing_key_string_09871234
+      - JWT_REFRESH_SECRET=prod_fallback_refresh_signing_key_string_56784321
+      - CLOUDFLARE_ENDPOINT=https://cloudfarestorage.com
+      - CLOUDFLARE_ACCESS_KEY=mock_key
+      - CLOUDFLARE_SECRET_KEY=mock_secret
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=educore
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-educore}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
     ports:
       - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
-    volumes:
-      - ./backend:/app
-      - media_files:/app/media_files
-      - static_files:/app/staticfiles
-    env_file:
-      - .env
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  celery:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    command: celery -A config worker -l info --concurrency=2
-    volumes:
-      - ./backend:/app
-    env_file:
-      - .env
-    depends_on:
-      - backend
-      - redis
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    depends_on:
-      - backend
 
 volumes:
   postgres_data:
-  redis_data:
-  media_files:
-  static_files:

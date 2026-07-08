@@ -1,0 +1,1 @@
+"""Grade ORM model."""
