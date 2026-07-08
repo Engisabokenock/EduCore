@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     MPESA_PASSKEY: Optional[str] = None
     MPESA_CALLBACK_URL: Optional[str] = None
 
+    # Frontend URL (used for CORS in production — set to the Railway-generated domain)
+    FRONTEND_URL: Optional[str] = None
+
     # Logging Parameters
     LOG_LEVEL: str = "INFO"
 
