@@ -55,9 +55,9 @@ app = FastAPI(
 # -------------------------------------------------------------------------
 # CROSS-ORIGIN RESOURCE SHARING (CORS) PRODUCTION GATES
 # -------------------------------------------------------------------------
-ALLOWED_ORIGINS = (
-    ["https://educore.io"] if settings.APP_ENV == "production" else ["*"]
-)
+ALLOWED_ORIGINS = ["https://educore.io"]
+if settings.FRONTEND_URL:
+    ALLOWED_ORIGINS.append(settings.FRONTEND_URL)
 
 app.add_middleware(
     CORSMiddleware,

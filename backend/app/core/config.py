@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Core Application Settings
     APP_NAME: str = "EduCore"
     APP_ENV: Literal["development", "staging", "production"] = "development"
+    FRONTEND_URL: Optional[str] = None
     # NOTE: override these in every real environment via environment variables.
     SECRET_KEY: str = "change-me-in-production"
     JWT_SECRET_KEY: str = "change-me-in-production-jwt"
