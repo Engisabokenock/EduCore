@@ -1,3 +1,5 @@
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +10,7 @@ from app.core.exceptions import AppBaseException, AuthorizationError
 from app.api.deps import get_current_user, RoleChecker
 from app.models.base import User, UserRole
 from app.models.resource import AcademicResource, ContentTag, ResourceTypeVariant, AcademicTerm
-from app.schemas.resource import ResourceCreate, ResourceUpdate, ResourceOut
+from app.schemas.resource import ResourceCreate, ResourceOut
 from app.storage.r2 import StorageProvider
 
 router = APIRouter(prefix="/resources", tags=["Content Asset Management Engine"])
