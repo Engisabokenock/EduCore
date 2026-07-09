@@ -5,7 +5,12 @@
  */
 import type { Grade, Subject, Topic, Resource, Plan, PaginatedResponse } from "@/types";
 
-const BASE = "/api/v1";
+const API_BASE = (
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
+    : "https://educore-backend-production-61bf.up.railway.app"
+);
+const BASE = `${API_BASE}/api/v1`;
 
 type SearchResults = {
   query: string;
@@ -17,7 +22,7 @@ type SearchResults = {
 };
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T | null> {
-  const url = new URL(`${BASE}${path}`, window.location.origin);
+  const url = new URL(`${BASE}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== "") url.searchParams.set(k, v);
@@ -30,6 +35,7 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T 
     });
     if (!res.ok) return null;
     const json = await res.json();
+    // EduCore API wraps all responses in { success, data, ... }
     return (json.data ?? json) as T;
   } catch {
     return null;
