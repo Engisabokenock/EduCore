@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -18,6 +19,7 @@ from app.schemas.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Identity Lifecycle Engine"])
+logger = logging.getLogger(__name__)
 
 
 def _user_public(user: User) -> dict:
@@ -93,6 +95,7 @@ async def register(payload: RegistrationRequest, db: AsyncSession = Depends(get_
     except AppBaseException:
         raise
     except Exception as exc:
+        logger.exception(f"Registration error: {exc}")
         raise AppBaseException(f"Registration failed: {type(exc).__name__}: {exc}")
 
 
@@ -116,6 +119,7 @@ async def login(payload: UserLogin, request: Request, db: AsyncSession = Depends
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
     db.add(session_record)
+    await db.commit()
 
     return {"tokens": {"access": access, "refresh": refresh}, "user": _user_public(user)}
 
@@ -150,6 +154,7 @@ async def refresh_tokens(payload: RefreshRequest, db: AsyncSession = Depends(get
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
     db.add(new_session)
+    await db.commit()
 
     return {"access": new_access, "refresh": new_refresh}
 
