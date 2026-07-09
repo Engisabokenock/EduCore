@@ -76,8 +76,10 @@ class PermissionGuard:
     """
     Production-grade Granular RBAC Verification Layer.
 
-    Validates identity access vectors. Bypasses checks for Super Admin profiles,
-    while enforcing explicit capability validation for Admin and lower roles.
+    Advanced Role Hierarchy enforcement:
+    - SUPER_ADMIN bypasses all permission checks (absolute privilege)
+    - All other roles must have the specific DynamicPermission assigned
+    - Uses get_current_active_user to ensure only active users are evaluated
     """
     def __init__(self, required_permission: DynamicPermission):
         self.required_permission = required_permission

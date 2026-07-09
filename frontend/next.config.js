@@ -19,6 +19,8 @@ const nextConfig = {
       },
     ],
   },
+  // Proxy all /api/* requests to the backend. This avoids CORS in production
+  // because the browser never sees a cross-origin request from the frontend.
   async rewrites() {
     return [
       {

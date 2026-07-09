@@ -13,6 +13,7 @@ from app.storage.r2 import StorageProvider
 
 router = APIRouter(prefix="/resources", tags=["Content Asset Management Engine"])
 
+# Content Operations Authorization Rules
 educator_or_admin_guard = Depends(RoleChecker([UserRole.ADMIN, UserRole.TEACHER]))
 
 
@@ -22,14 +23,23 @@ async def list_resources(
     type: Optional[str] = Query(None),
     grade_id: Optional[str] = None,
     subject_id: Optional[str] = None,
-    topic_id: Optional[str] = None,
-    term: Optional[AcademicTerm] = None,
-    year: Optional[int] = None,
+    topic_id: Optional[str] = None,  # Added for topic-level filtering from frontend
+    term: Optional[AcademicTerm] = None,  # Added for Term 1/2/3 filtering
+    year: Optional[int] = None,  # Added for year filtering
     is_published: bool = True,
     ordering: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
 ):
+    """
+    Public resource listing with filters.
+
+    Supports filtering by:
+    - resource type (revision_paper, worksheet, exam, past_paper, etc.)
+    - grade, subject, topic IDs
+    - term (1, 2, 3) and year
+    - ordering by downloads, views, or creation date
+    """
     stmt = select(AcademicResource).where(
         and_(
             AcademicResource.is_archived == False,
@@ -70,9 +80,9 @@ async def list_resources(
     return result.scalars().all()
 
 
-
 @router.get("/{slug}", response_model=ResourceOut)
 async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
+    """Public endpoint: get a single resource by slug."""
     result = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
     resource = result.scalar_one_or_none()
     if not resource:
@@ -98,14 +108,20 @@ async def create_resource(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Create a new resource.
+
+    Authorization: only ADMIN or TEACHER roles can create resources.
+    Auto-publishes if scheduled_publish_at is in the past or not set.
+    """
     if current_user.role.name not in [UserRole.ADMIN, UserRole.TEACHER]:
         raise AuthorizationError("Identity policies block asset ingestion pathways")
 
     now = datetime.now(timezone.utc)
     if payload.scheduled_publish_at is None or payload.scheduled_publish_at <= now:
-        is_published = True
+        is_published = True  # Immediate operational deployment vector
     else:
-        is_published = False
+        is_published = False  # Held until scheduled_publish_at
 
     resource = AcademicResource(
         title=payload.title,
@@ -125,6 +141,7 @@ async def create_resource(
         created_by_id=current_user.id,
     )
 
+    # Resolve tag associations (get-or-create)
     tag_objs: list[ContentTag] = []
     for name in payload.tags:
         result = await db.execute(select(ContentTag).where(ContentTag.name == name))
@@ -143,6 +160,7 @@ async def create_resource(
 
 @router.post("/{resource_id}/publish", response_model=ResourceOut, dependencies=[educator_or_admin_guard])
 async def publish_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Publish a draft or scheduled resource immediately."""
     res_stmt = await db.execute(select(AcademicResource).where(AcademicResource.id == resource_id))
     resource = res_stmt.scalar_one_or_none()
     if not resource:
@@ -156,6 +174,7 @@ async def publish_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(ge
 
 @router.post("/{resource_id}/archive", response_model=ResourceOut, dependencies=[educator_or_admin_guard])
 async def archive_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Archive a resource so it no longer appears in public listings."""
     res_stmt = await db.execute(select(AcademicResource).where(AcademicResource.id == resource_id))
     resource = res_stmt.scalar_one_or_none()
     if not resource:
@@ -169,9 +188,10 @@ async def archive_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(ge
 
 @router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(RoleChecker([UserRole.ADMIN]))])
 async def purge_resource_permanently(resource_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Hard-purges targeted records from database tables entirely (Restricted to Administrators)."""
+    """Hard-purge a resource from the database entirely. Restricted to Administrators."""
     res_stmt = await db.execute(select(AcademicResource).where(AcademicResource.id == resource_id))
     resource = res_stmt.scalar_one_or_none()
     if not resource:
          raise AppBaseException("Resource record not found", 404)
     await db.delete(resource)
+

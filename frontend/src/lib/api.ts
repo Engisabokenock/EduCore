@@ -1,10 +1,16 @@
 /**
  * Centralized API client for EduCore Platform.
  * All API calls go through here — never call fetch/axios directly in components.
+ *
+ * IMPORTANT: Uses a relative baseURL so requests go through Next.js rewrites
+ * defined in next.config.js. This avoids CORS issues in production because
+ * the browser sees same-origin requests to /api/v1/... and Next.js proxies
+ * them to the Railway backend.
  */
 import axios, { AxiosError, AxiosInstance } from "axios";
 import Cookies from "js-cookie";
 
+// Relative API prefix: Next.js rewrites /api/:path* to the real backend.
 const API_PREFIX = "/api/v1";
 
 const api: AxiosInstance = axios.create({

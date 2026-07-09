@@ -17,7 +17,9 @@ from app.schemas.cbc import (
 
 router = APIRouter(prefix="/academic", tags=["CBC Curriculum Management Vector"])
 
-# Structural Enforcement Guardrails
+# Advanced Role Hierarchy enforcement:
+# - admin_protect: only ADMIN can create/manage grades, subjects, topics
+# - educator_or_admin_protect: ADMIN or TEACHER can create topics/outcomes/resources
 admin_protect = Depends(RoleChecker([UserRole.ADMIN]))
 educator_or_admin_protect = Depends(RoleChecker([UserRole.ADMIN, UserRole.TEACHER]))
 
@@ -35,11 +37,13 @@ async def create_grade(payload: GradeCreate, db: AsyncSession = Depends(get_db))
 
 @router.get("/grades", response_model=list[GradeOut])
 async def list_grades(db: AsyncSession = Depends(get_db)):
+    """Public endpoint: list all available grades."""
     result = await db.execute(select(Grade).order_by(Grade.name))
     return result.scalars().all()
 
 @router.get("/grades/{slug}", response_model=GradeDetailOut)
 async def get_grade_structure(slug: str, db: AsyncSession = Depends(get_db)):
+    """Public endpoint: get a single grade by slug with its subjects."""
     result = await db.execute(select(Grade).where(Grade.slug == slug))
     grade = result.scalar_one_or_none()
     if not grade:
@@ -47,23 +51,31 @@ async def get_grade_structure(slug: str, db: AsyncSession = Depends(get_db)):
     return grade
 
 # --- SUBJECT ENDPOINTS ---
+@router.post("/grades/{grade_id}/subjects", response_model=SubjectDetailOut, status_code=status.HTTP_201_CREATED, dependencies=[admin_protect])
+async def create_subject(grade_id: UUID, payload: SubjectCreate, db: AsyncSession = Depends(get_db)):
+    grade_res = await db.execute(select(Grade).where(Grade.id == grade_id))
+    if not grade_res.scalar_one_or_none():
+        raise AppBaseException("Target grade container does not exist", 404)
+
+    existing_code = await db.execute(select(Subject).where(Subject.code == payload.code))
+    if existing_code.scalar_one_or_none():
+        raise AppBaseException("Subject catalog code reservation collision", 409)
+
+    subject = Subject(grade_id=grade_id, **payload.model_dump())
+    db.add(subject)
+    await db.flush()
+    return subject
+
 @router.get("/subjects", response_model=list[SubjectOut])
 async def list_subjects(db: AsyncSession = Depends(get_db)):
+    """Public endpoint: list all subjects."""
     result = await db.execute(select(Subject).order_by(Subject.name))
     return result.scalars().all()
 
 @router.get("/subjects/{slug}", response_model=SubjectDetailOut)
 async def get_subject_tree(slug: str, db: AsyncSession = Depends(get_db)):
+    """Public endpoint: get a single subject by slug with its topics."""
     result = await db.execute(select(Subject).where(Subject.slug == slug))
-    subject = result.scalar_one_or_none()
-    if not subject:
-        raise AppBaseException("Subject record not found", 404)
-    return subject
-
-
-@router.get("/subjects/{subject_id}", response_model=SubjectDetailOut)
-async def get_subject_tree(subject_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Subject).where(Subject.id == subject_id))
     subject = result.scalar_one_or_none()
     if not subject:
         raise AppBaseException("Subject record not found", 404)
@@ -104,3 +116,4 @@ async def add_curriculum_resource(topic_id: UUID, payload: ResourceCreate, db: A
     db.add(resource)
     await db.flush()
     return resource
+

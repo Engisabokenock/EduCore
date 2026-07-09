@@ -42,6 +42,15 @@ def _user_public(user: User) -> dict:
 
 @router.post("/register", response_model=AuthResultSchema, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegistrationRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Register a new user account.
+
+    Fixes applied:
+    - Explicitly commits the transaction so data persists in PostgreSQL
+    - Surfaces actual backend errors instead of generic 500 responses
+    - Auto-creates the requested role if missing (emergency bootstrap)
+    - Returns real error details for frontend/user feedback
+    """
     try:
         # Check uniqueness
         existing = await db.execute(select(User).where(User.email == payload.email))

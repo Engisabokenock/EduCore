@@ -192,8 +192,9 @@ async def modify_user_role_assignment(
     """
     Secured Access Modification Flow.
 
-    Locks down identity changes, blocking lower administrators from elevating privileges
-    or altering Super Admin profiles.
+    Security Firewall Rules:
+    - Rule A: Protect Super Admin accounts from unauthorized changes by non-Super-Admins
+    - Rule B: Block lower administrators from elevating their own roles to Super Admin
     """
     target_user_stmt = select(User).where(User.id == user_id)
     target_user_context = await db.execute(target_user_stmt)
@@ -239,7 +240,8 @@ async def view_infrastructure_security_audit_logs(
     """
     Infrastructure Logging Core Pathway.
 
-    Restricted to authorized system operators. Provides access to connection logs, metadata strings, and transaction traces.
+    Restricted to authorized system operators. Provides access to connection logs,
+    metadata strings, and transaction traces.
     """
     stmt = select(NotificationLog).order_by(NotificationLog.sent_at.desc()).limit(100)
     res = await db.execute(stmt)

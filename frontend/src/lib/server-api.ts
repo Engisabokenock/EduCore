@@ -2,6 +2,11 @@
  * Server-side API helpers for server components and generateMetadata().
  * Uses native fetch (not axios) — safe to import only in server components.
  * Do NOT import in client components; use services/api-service.ts for those.
+ *
+ * URL behavior:
+ * - If NEXT_PUBLIC_API_URL is set at build time, uses that absolute URL.
+ * - Otherwise falls back to /api/v1 so requests go through Next.js rewrites.
+ * - The dummy base URL avoids Node.js URL parsing issues in SSR.
  */
 import type { Grade, Subject, Topic, Resource, Plan, PaginatedResponse } from "@/types";
 
