@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
-# Many-to-Many Association Table for Role-Based Access Control (RBAC)
+# Immutable Many-to-Many Association Ledger tracking Permission Matrix Allocations
 role_permissions = Table(
     "role_permissions",
     Base.metadata,
@@ -16,6 +16,9 @@ role_permissions = Table(
 )
 
 class UserRole(str, Enum):
+    # Advanced Role Hierarchy: separates business operations (Admin) from
+    # system controls (Super Admin). SCHOOL_ADMIN is scoped to institutional
+    # boundaries. Remaining roles map to classroom/consumer contexts.
     SUPER_ADMIN = "super_admin"  # Platform Owner - Complete Absolute Privilege
     ADMIN = "admin"              # Business Administrator - Complete Operations Coverage
     SCHOOL_ADMIN = "school_admin"# Institutional Principal - Scope Boundaries Enforced
@@ -57,10 +60,10 @@ class Role(Base):
     __tablename__ = "roles"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), unique=True, index=True, nullable=False)
+    name: Mapped[UserRole] = mapped_column(String(50), unique=True, index=True, nullable=False)
 
-    # Relationships
-    permissions: Mapped[list[Permission]] = relationship(
+    # Relationships with eager collection loading
+    permissions: Mapped[List[Permission]] = relationship(
         secondary=role_permissions, lazy="selectin"
     )
 
@@ -72,22 +75,11 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False)
 
-    # Verification and Status Vectors
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    verification_token: Mapped[str] = mapped_column(String(255), nullable=True, index=True)
-    reset_token: Mapped[str] = mapped_column(String(255), nullable=True, index=True)
-    reset_token_expires: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
-    )
 
     # Relationships
     role: Mapped[Role] = relationship(lazy="selectin")
-    profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="joined")
-    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan", lazy="select")
 
 class Profile(Base):
     __tablename__ = "profiles"
@@ -97,6 +89,8 @@ class Profile(Base):
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     avatar_url: Mapped[str] = mapped_column(String(512), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(30), nullable=True)
+    # JSONB used so metadata_fields can store dicts without PostgreSQL type errors.
+    # Previously this was String, which broke registration inserts passing {}.
     metadata_fields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False) # Stores custom preferences / regional school tags
 
     user: Mapped[User] = relationship(back_populates="profile")
@@ -114,3 +108,4 @@ class UserSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
