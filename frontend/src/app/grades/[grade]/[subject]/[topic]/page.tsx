@@ -11,13 +11,26 @@ interface Props {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  notes: "Notes",
-  past_paper: "Past Papers",
+  revision_paper: "Revision Papers",
   worksheet: "Worksheets",
-  revision: "Revision",
-  video: "Videos",
-  ebook: "eBooks",
+  exam: "Exams",
+  mock_exam: "Mock Exams",
+  past_paper: "Past Papers",
+  lesson_note: "Lesson Notes",
+  marking_scheme: "Marking Schemes",
+  scheme_of_work: "Schemes of Work",
+  lesson_plan: "Lesson Plans",
 };
+
+const TERMS = [
+  { value: "", label: "All Terms" },
+  { value: "1", label: "Term 1" },
+  { value: "2", label: "Term 2" },
+  { value: "3", label: "Term 3" },
+];
+
+const YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
+
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [grade, subject] = await Promise.all([
@@ -112,12 +125,12 @@ export default async function TopicPage({ params, searchParams }: Props) {
   if (!topic) notFound();
 
   const apiParams: Record<string, string> = {
-    grade: params.grade,
-    subject: params.subject,
-    topic: params.topic,
+    grade_id: params.grade,
+    subject_id: params.subject,
+    topic_id: params.topic,
     page_size: "24",
   };
-  if (searchParams.type) apiParams.resource_type = searchParams.type;
+  if (searchParams.type) apiParams.type = searchParams.type;
   if (searchParams.term) apiParams.term = searchParams.term;
   if (searchParams.year) apiParams.year = searchParams.year;
 
@@ -189,30 +202,72 @@ export default async function TopicPage({ params, searchParams }: Props) {
           </div>
 
           {/* Filters — URL-param based, no JS required */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            <Link
-              href={`/grades/${params.grade}/${params.subject}/${params.topic}`}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                !searchParams.type
-                  ? "bg-primary-600 text-white border-primary-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              All
-            </Link>
-            {Object.entries(TYPE_LABELS).map(([value, label]) => (
+          <div className="space-y-4 mb-8">
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs font-semibold text-gray-500 mr-1">Type:</span>
               <Link
-                key={value}
-                href={`/grades/${params.grade}/${params.subject}/${params.topic}${filterUrl({ type: value })}`}
+                href={`/grades/${params.grade}/${params.subject}/${params.topic}`}
                 className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                  searchParams.type === value
+                  !searchParams.type
                     ? "bg-primary-600 text-white border-primary-600"
                     : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                 }`}
               >
-                {label}
+                All
               </Link>
-            ))}
+              {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                <Link
+                  key={value}
+                  href={`/grades/${params.grade}/${params.subject}/${params.topic}${filterUrl({ type: value })}`}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                    searchParams.type === value
+                      ? "bg-primary-600 text-white border-primary-600"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs font-semibold text-gray-500 mr-1">Term:</span>
+              {TERMS.map(({ value, label }) => (
+                <Link
+                  key={value}
+                  href={`/grades/${params.grade}/${params.subject}/${params.topic}${filterUrl({ term: value })}`}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                    searchParams.term === value || (!searchParams.term && value === "")
+                      ? "bg-primary-600 text-white border-primary-600"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 mr-1">Year:</span>
+              <select
+                defaultValue={searchParams.year ?? ""}
+                onChange={(e) => {
+                  const url = new URL(window.location.href);
+                  if (e.target.value) {
+                    url.searchParams.set("year", e.target.value);
+                  } else {
+                    url.searchParams.delete("year");
+                  }
+                  window.location.href = url.toString();
+                }}
+                className="text-xs border border-gray-200 rounded-full px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-primary-400"
+              >
+                <option value="">All Years</option>
+                {YEARS.map((y) => (
+                  <option key={y} value={String(y)}>{y}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {resources.length === 0 ? (

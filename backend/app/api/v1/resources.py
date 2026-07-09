@@ -1,9 +1,3 @@
-import uuid
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, status, Query, UploadFile, File
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy import and_, or_
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +22,9 @@ async def list_resources(
     type: Optional[str] = Query(None),
     grade_id: Optional[str] = None,
     subject_id: Optional[str] = None,
+    topic_id: Optional[str] = None,
+    term: Optional[AcademicTerm] = None,
+    year: Optional[int] = None,
     is_published: bool = True,
     ordering: Optional[str] = None,
     page: int = 1,
@@ -50,6 +47,12 @@ async def list_resources(
         stmt = stmt.where(AcademicResource.grade_id == grade_id)
     if subject_id:
         stmt = stmt.where(AcademicResource.subject_id == subject_id)
+    if topic_id:
+        stmt = stmt.where(AcademicResource.topic_id == topic_id)
+    if term is not None:
+        stmt = stmt.where(AcademicResource.term == term)
+    if year is not None:
+        stmt = stmt.where(AcademicResource.year == year)
 
     if ordering == "-downloads_count":
         stmt = stmt.order_by(desc(AcademicResource.downloads_count))
@@ -67,6 +70,7 @@ async def list_resources(
     return result.scalars().all()
 
 
+
 @router.get("/{slug}", response_model=ResourceOut)
 async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
@@ -77,16 +81,6 @@ async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED, dependencies=[educator_or_admin_guard])
-
-
-
-@router.get("/{slug}", response_model=ResourceOut)
-async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
-    resource = result.scalar_one_or_none()
-    if not resource:
-        raise AppBaseException("Resource record not found", 404)
-    return resource
 async def upload_resource_pdf(file: UploadFile = File(...), storage: StorageProvider = Depends()) -> dict:
     """Streams asset drops to isolated Cloudflare object containers securely."""
     if file.content_type != "application/pdf":
@@ -97,6 +91,7 @@ async def upload_resource_pdf(file: UploadFile = File(...), storage: StorageProv
     url = await storage.upload_file(bytes_data, destination_key, "application/pdf")
     return {"pdf_url": url}
 
+
 @router.post("", response_model=ResourceOut, status_code=status.HTTP_201_CREATED)
 async def create_resource(
     payload: ResourceCreate,
@@ -106,16 +101,16 @@ async def create_resource(
     if current_user.role.name not in [UserRole.ADMIN, UserRole.TEACHER]:
         raise AuthorizationError("Identity policies block asset ingestion pathways")
 
-    # Automated processing initialization block
     now = datetime.now(timezone.utc)
     if payload.scheduled_publish_at is None or payload.scheduled_publish_at <= now:
-        is_published = True  # Immediate operational deployment vector
+        is_published = True
     else:
-        is_published = False  # Held until scheduled_publish_at
+        is_published = False
 
     resource = AcademicResource(
         title=payload.title,
         description=payload.description,
+        slug=payload.slug,
         grade_id=payload.grade_id,
         subject_id=payload.subject_id,
         topic_id=payload.topic_id,
@@ -130,7 +125,6 @@ async def create_resource(
         created_by_id=current_user.id,
     )
 
-    # Resolve tag associations (get-or-create)
     tag_objs: list[ContentTag] = []
     for name in payload.tags:
         result = await db.execute(select(ContentTag).where(ContentTag.name == name))
@@ -146,6 +140,7 @@ async def create_resource(
     await db.flush()
     return resource
 
+
 @router.post("/{resource_id}/publish", response_model=ResourceOut, dependencies=[educator_or_admin_guard])
 async def publish_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     res_stmt = await db.execute(select(AcademicResource).where(AcademicResource.id == resource_id))
@@ -158,17 +153,19 @@ async def publish_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(ge
     db.add(resource)
     return resource
 
+
 @router.post("/{resource_id}/archive", response_model=ResourceOut, dependencies=[educator_or_admin_guard])
 async def archive_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     res_stmt = await db.execute(select(AcademicResource).where(AcademicResource.id == resource_id))
     resource = res_stmt.scalar_one_or_none()
     if not resource:
-         raise AppBaseException("Target resource reference does not exist", 404)
+         raise AppBaseException("Resource record not found", 404)
 
     resource.is_archived = True
     resource.is_published = False
     db.add(resource)
     return resource
+
 
 @router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(RoleChecker([UserRole.ADMIN]))])
 async def purge_resource_permanently(resource_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
