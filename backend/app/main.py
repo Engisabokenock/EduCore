@@ -13,6 +13,7 @@ from app.core.middleware import (
 from app.core.cache import redis_pool
 from app.core.compress import configure_compression_layers
 from app.core.database import engine
+from app.core.lifespan import startup_create_tables
 from app.api.deps import sliding_window_rate_limiter
 from app.api.v1.auth import router as auth_v1_router
 from app.api.v1.users import router as users_v1_router
@@ -37,6 +38,7 @@ async def application_lifetime_orchestrator(app: FastAPI):
     and handles graceful teardowns during deployment scale-downs.
     """
     # System Boot Sequence Activity Points
+    await startup_create_tables()
     yield
     # System Teardown / Graceful Shutdown Operations Block
     await engine.dispose()               # Safely drain SQLAlchemy PostgreSQL connection pools

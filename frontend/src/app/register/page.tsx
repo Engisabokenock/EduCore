@@ -48,14 +48,14 @@ export default function RegisterPage() {
       toast.success("Account created! Check your email to verify.");
       router.push("/dashboard");
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: Record<string, string[]> } } })
-        ?.response?.data?.detail;
-      if (detail && typeof detail === "object") {
-        const first = Object.values(detail)[0];
-        toast.error(Array.isArray(first) ? first[0] : "Registration failed.");
-      } else {
-        toast.error("Registration failed. Please try again.");
-      }
+      const errorData = (err as { response?: { data?: Record<string, unknown> } })
+        ?.response?.data;
+      const message = typeof errorData?.error === "string"
+        ? errorData.error
+        : typeof errorData?.detail === "string"
+          ? errorData.detail
+          : "Registration failed. Please try again.";
+      toast.error(message as string);
     } finally {
       setLoading(false);
     }
