@@ -67,7 +67,26 @@ async def list_resources(
     return result.scalars().all()
 
 
+@router.get("/{slug}", response_model=ResourceOut)
+async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
+    resource = result.scalar_one_or_none()
+    if not resource:
+        raise AppBaseException("Resource record not found", 404)
+    return resource
+
+
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED, dependencies=[educator_or_admin_guard])
+
+
+
+@router.get("/{slug}", response_model=ResourceOut)
+async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
+    resource = result.scalar_one_or_none()
+    if not resource:
+        raise AppBaseException("Resource record not found", 404)
+    return resource
 async def upload_resource_pdf(file: UploadFile = File(...), storage: StorageProvider = Depends()) -> dict:
     """Streams asset drops to isolated Cloudflare object containers securely."""
     if file.content_type != "application/pdf":
