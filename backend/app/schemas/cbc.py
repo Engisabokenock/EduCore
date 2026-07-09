@@ -55,6 +55,13 @@ class SubjectCreate(BaseModel):
     is_active: bool = True
     order: int = 0
 
+class GradeInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    slug: str
+    code: str
+
 class SubjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -67,6 +74,7 @@ class SubjectOut(BaseModel):
     is_active: bool
     order: int
     topic_count: int = 0
+    grade: Optional[GradeInfo] = None
     topics: Optional[list[TopicOut]] = []
 
 class SubjectDetailOut(SubjectOut):

@@ -52,6 +52,7 @@ export interface Subject {
   order: number;
   is_active: boolean;
   topic_count: number;
+  grade: { id: string; name: string; slug: string; code: string } | null;
   topics?: Topic[];
 }
 

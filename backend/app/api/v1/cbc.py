@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException
@@ -69,13 +70,19 @@ async def create_subject(grade_id: UUID, payload: SubjectCreate, db: AsyncSessio
 @router.get("/subjects", response_model=list[SubjectOut])
 async def list_subjects(db: AsyncSession = Depends(get_db)):
     """Public endpoint: list all subjects."""
-    result = await db.execute(select(Subject).order_by(Subject.name))
+    result = await db.execute(
+        select(Subject).options(selectinload(Subject.grade)).order_by(Subject.name)
+    )
     return result.scalars().all()
 
 @router.get("/subjects/{slug}", response_model=SubjectDetailOut)
 async def get_subject_tree(slug: str, db: AsyncSession = Depends(get_db)):
     """Public endpoint: get a single subject by slug with its topics."""
-    result = await db.execute(select(Subject).where(Subject.slug == slug))
+    result = await db.execute(
+        select(Subject)
+        .options(selectinload(Subject.grade), selectinload(Subject.topics))
+        .where(Subject.slug == slug)
+    )
     subject = result.scalar_one_or_none()
     if not subject:
         raise AppBaseException("Subject record not found", 404)
