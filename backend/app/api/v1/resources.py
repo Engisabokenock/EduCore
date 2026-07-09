@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, or_, desc
+from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthorizationError
 from app.api.deps import get_current_user, RoleChecker
@@ -42,7 +43,11 @@ async def list_resources(
     - term (1, 2, 3) and year
     - ordering by downloads, views, or creation date
     """
-    stmt = select(AcademicResource).where(
+    stmt = select(AcademicResource).options(
+        selectinload(AcademicResource.grade),
+        selectinload(AcademicResource.subject),
+        selectinload(AcademicResource.topic),
+    ).where(
         and_(
             AcademicResource.is_archived == False,
             AcademicResource.is_published == is_published,
@@ -85,7 +90,15 @@ async def list_resources(
 @router.get("/{slug}", response_model=ResourceOut)
 async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
     """Public endpoint: get a single resource by slug."""
-    result = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
+    result = await db.execute(
+        select(AcademicResource)
+        .options(
+            selectinload(AcademicResource.grade),
+            selectinload(AcademicResource.subject),
+            selectinload(AcademicResource.topic),
+        )
+        .where(AcademicResource.slug == slug)
+    )
     resource = result.scalar_one_or_none()
     if not resource:
         raise AppBaseException("Resource record not found", 404)

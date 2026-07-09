@@ -39,6 +39,24 @@ class TagOut(BaseModel):
     id: UUID
     name: str
 
+class GradeInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    slug: str
+
+class SubjectInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    slug: str
+
+class TopicInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    slug: str
+
 class ResourceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: UUID
@@ -61,6 +79,9 @@ class ResourceOut(BaseModel):
     downloads_count: int
     created_by_id: UUID
     created_at: datetime
+    grade: Optional[GradeInfo] = None
+    subject: Optional[SubjectInfo] = None
+    topic: Optional[TopicInfo] = None
     tags: list[TagOut]
 
     @property

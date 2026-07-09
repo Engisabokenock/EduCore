@@ -74,6 +74,9 @@ export interface Resource {
   grade_id: string;
   subject_id: string;
   topic_id: string | null;
+  grade: { id: string; name: string; slug: string } | null;
+  subject: { id: string; name: string; slug: string } | null;
+  topic: { id: string; name: string; slug: string } | null;
   thumbnail: string | null;
   file_type: string;
   file_size: number;

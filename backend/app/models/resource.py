@@ -79,4 +79,8 @@ class AcademicResource(Base):
 
     # Database Mapped Node Target Relationships
     created_by: Mapped["User"] = relationship(lazy="raise")
+    grade: Mapped["Grade"] = relationship(lazy="selectin")
+    subject: Mapped["Subject"] = relationship(lazy="selectin")
+    topic: Mapped[Optional["Topic"]] = relationship(lazy="selectin")
     tags: Mapped[list[ContentTag]] = relationship(secondary=resource_tags, lazy="selectin")
+
