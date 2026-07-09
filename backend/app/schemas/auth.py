@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from uuid import UUID
+from datetime import datetime
 from typing import Optional
 from app.models.base import UserRole
 
