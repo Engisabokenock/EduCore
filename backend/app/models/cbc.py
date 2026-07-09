@@ -18,6 +18,7 @@ class Grade(Base):
     name: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False) # e.g., "Grade 1", "PP1"
     code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False) # e.g., "G1", "PP1"
     description: Mapped[str] = mapped_column(Text, nullable=True)
+    slug: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
 
     # Cascade relationships downstream
     subjects: Mapped[list["Subject"]] = relationship(
@@ -32,6 +33,7 @@ class Subject(Base):
     name: Mapped[str] = mapped_column(String(100), index=True, nullable=False) # e.g., "Mathematics Activities"
     code: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False) # e.g., "G1-MATH"
     description: Mapped[str] = mapped_column(Text, nullable=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
 
     grade: Mapped[Grade] = relationship(back_populates="subjects")
     topics: Mapped[list["Topic"]] = relationship(
@@ -45,6 +47,7 @@ class Topic(Base):
     subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cbc_subjects.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(150), index=True, nullable=False) # e.g., "Numbers & Operations"
     ordering: Mapped[int] = mapped_column(default=0, nullable=False)
+    slug: Mapped[str] = mapped_column(String(150), unique=True, index=True, nullable=False)
 
     subject: Mapped[Subject] = relationship(back_populates="topics")
     learning_outcomes: Mapped[list["LearningOutcome"]] = relationship(
