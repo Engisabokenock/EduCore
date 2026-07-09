@@ -15,7 +15,7 @@ from app.schemas.cbc import (
     ResourceCreate, ResourceOut
 )
 
-router = APIRouter(prefix="/curriculum", tags=["CBC Curriculum Management Vector"])
+router = APIRouter(prefix="/academic", tags=["CBC Curriculum Management Vector"])
 
 # Structural Enforcement Guardrails
 admin_protect = Depends(RoleChecker([UserRole.ADMIN]))
@@ -38,29 +38,28 @@ async def list_grades(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Grade).order_by(Grade.name))
     return result.scalars().all()
 
-@router.get("/grades/{grade_id}", response_model=GradeDetailOut)
-async def get_grade_structure(grade_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Grade).where(Grade.id == grade_id))
+@router.get("/grades/{slug}", response_model=GradeDetailOut)
+async def get_grade_structure(slug: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Grade).where(Grade.slug == slug))
     grade = result.scalar_one_or_none()
     if not grade:
         raise AppBaseException("Target grade record not found", 404)
     return grade
 
 # --- SUBJECT ENDPOINTS ---
-@router.post("/grades/{grade_id}/subjects", response_model=SubjectDetailOut, status_code=status.HTTP_201_CREATED, dependencies=[admin_protect])
-async def create_subject(grade_id: UUID, payload: SubjectCreate, db: AsyncSession = Depends(get_db)):
-    grade_res = await db.execute(select(Grade).where(Grade.id == grade_id))
-    if not grade_res.scalar_one_or_none():
-        raise AppBaseException("Target grade container does not exist", 404)
+@router.get("/subjects", response_model=list[SubjectOut])
+async def list_subjects(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Subject).order_by(Subject.name))
+    return result.scalars().all()
 
-    existing_code = await db.execute(select(Subject).where(Subject.code == payload.code))
-    if existing_code.scalar_one_or_none():
-        raise AppBaseException("Subject catalog code reservation collision", 409)
-
-    subject = Subject(grade_id=grade_id, **payload.model_dump())
-    db.add(subject)
-    await db.flush()
+@router.get("/subjects/{slug}", response_model=SubjectDetailOut)
+async def get_subject_tree(slug: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Subject).where(Subject.slug == slug))
+    subject = result.scalar_one_or_none()
+    if not subject:
+        raise AppBaseException("Subject record not found", 404)
     return subject
+
 
 @router.get("/subjects/{subject_id}", response_model=SubjectDetailOut)
 async def get_subject_tree(subject_id: UUID, db: AsyncSession = Depends(get_db)):
