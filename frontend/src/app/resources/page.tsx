@@ -92,11 +92,11 @@ export default async function ResourcesPage({ searchParams }: Props) {
                 <div className="flex items-center gap-4 text-xs text-gray-500 mt-auto">
                   <span className="flex items-center gap-1">
                     <Eye className="h-3.5 w-3.5" />
-                    {r.view_count ?? 0}
+                    {r.views_count ?? 0}
                   </span>
                   <span className="flex items-center gap-1">
                     <Download className="h-3.5 w-3.5" />
-                    {r.download_count ?? 0}
+                    {r.downloads_count ?? 0}
                   </span>
                 </div>
               </Link>

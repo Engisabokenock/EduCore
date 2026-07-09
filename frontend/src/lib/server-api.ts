@@ -22,7 +22,7 @@ type SearchResults = {
 };
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T | null> {
-  const url = new URL(`${BASE}${path}`);
+  const url = new URL(`${BASE}${path}`, "http://localhost");
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== "") url.searchParams.set(k, v);

@@ -69,24 +69,22 @@ export interface Resource {
   title: string;
   slug: string;
   description: string;
-  resource_type: "notes" | "past_paper" | "worksheet" | "revision" | "video" | "audio" | "ebook";
+  resource_type: "revision_paper" | "worksheet" | "exam" | "mock_exam" | "past_paper" | "lesson_note" | "marking_scheme" | "scheme_of_work" | "lesson_plan";
   is_premium: boolean;
-  grade: Grade | null;
-  subject: Subject | null;
-  topic: Topic | null;
+  grade_id: string;
+  subject_id: string;
+  topic_id: string | null;
   thumbnail: string | null;
   file_type: string;
   file_size: number;
-  year: number | null;
+  year: number;
   term: 1 | 2 | 3 | null;
   tags: string[];
-  view_count: number;
-  download_count: number;
+  views_count: number;
+  downloads_count: number;
   is_published: boolean;
-  published_at: string | null;
   created_at: string;
   file?: string;
-  external_url?: string;
   can_access?: boolean;
 }
 
