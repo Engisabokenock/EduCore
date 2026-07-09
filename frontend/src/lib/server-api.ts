@@ -8,9 +8,9 @@ import type { Grade, Subject, Topic, Resource, Plan, PaginatedResponse } from "@
 const API_BASE = (
   typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL
     ? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
-    : "https://educore-backend-production-61bf.up.railway.app"
+    : ""
 );
-const BASE = `${API_BASE}/api/v1`;
+const BASE = API_BASE ? `${API_BASE}/api/v1` : "/api/v1";
 
 type SearchResults = {
   query: string;

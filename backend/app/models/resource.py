@@ -42,6 +42,7 @@ class AcademicResource(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
 
     # Core CBC Hierarchical Matrix Mappings
     grade_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cbc_grades.id", ondelete="RESTRICT"), nullable=False)

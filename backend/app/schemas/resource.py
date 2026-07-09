@@ -7,6 +7,7 @@ from app.models.resource import ResourceTypeVariant, AcademicTerm
 class ResourceCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=255)
     description: Optional[str] = None
+    slug: str = Field(..., min_length=3, max_length=255)
     grade_id: UUID
     subject_id: UUID
     topic_id: Optional[UUID] = None
@@ -39,10 +40,11 @@ class TagOut(BaseModel):
     name: str
 
 class ResourceOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: UUID
     title: str
     description: Optional[str]
+    slug: str
     grade_id: UUID
     subject_id: UUID
     topic_id: Optional[UUID]
@@ -60,3 +62,23 @@ class ResourceOut(BaseModel):
     created_by_id: UUID
     created_at: datetime
     tags: list[TagOut]
+
+    @property
+    def view_count(self) -> int:
+        return self.views_count
+
+    @property
+    def download_count(self) -> int:
+        return self.downloads_count
+
+    @property
+    def file(self) -> str:
+        return self.pdf_url
+
+    @property
+    def file_type(self) -> str:
+        return self.type_variant.value
+
+    @property
+    def file_size(self) -> int:
+        return 0

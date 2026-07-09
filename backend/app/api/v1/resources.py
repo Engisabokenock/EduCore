@@ -5,6 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, or_
 from typing import Optional
+from fastapi import APIRouter, Depends, status, Query, UploadFile, File
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import and_, or_, desc
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthorizationError
 from app.api.deps import get_current_user, RoleChecker
@@ -15,8 +19,53 @@ from app.storage.r2 import StorageProvider
 
 router = APIRouter(prefix="/resources", tags=["Content Asset Management Engine"])
 
-# Content Operations Authorization Rules
 educator_or_admin_guard = Depends(RoleChecker([UserRole.ADMIN, UserRole.TEACHER]))
+
+
+@router.get("", response_model=list[ResourceOut])
+async def list_resources(
+    db: AsyncSession = Depends(get_db),
+    type: Optional[str] = Query(None),
+    grade_id: Optional[str] = None,
+    subject_id: Optional[str] = None,
+    is_published: bool = True,
+    ordering: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+):
+    stmt = select(AcademicResource).where(
+        and_(
+            AcademicResource.is_archived == False,
+            AcademicResource.is_published == is_published,
+        )
+    )
+
+    if type:
+        try:
+            stmt = stmt.where(AcademicResource.type_variant == ResourceTypeVariant(type))
+        except ValueError:
+            raise AppBaseException("Invalid resource type", 400)
+
+    if grade_id:
+        stmt = stmt.where(AcademicResource.grade_id == grade_id)
+    if subject_id:
+        stmt = stmt.where(AcademicResource.subject_id == subject_id)
+
+    if ordering == "-downloads_count":
+        stmt = stmt.order_by(desc(AcademicResource.downloads_count))
+    elif ordering == "-views_count":
+        stmt = stmt.order_by(desc(AcademicResource.views_count))
+    elif ordering == "-created_at":
+        stmt = stmt.order_by(desc(AcademicResource.created_at))
+    else:
+        stmt = stmt.order_by(desc(AcademicResource.created_at))
+
+    offset = (page - 1) * page_size
+    stmt = stmt.offset(offset).limit(page_size)
+
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
 
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED, dependencies=[educator_or_admin_guard])
 async def upload_resource_pdf(file: UploadFile = File(...), storage: StorageProvider = Depends()) -> dict:
