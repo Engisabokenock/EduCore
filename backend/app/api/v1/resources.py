@@ -153,6 +153,7 @@ async def create_resource(
         is_premium=payload.is_premium,
         is_published=is_published,
         scheduled_publish_at=payload.scheduled_publish_at,
+        published_at=datetime.now(timezone.utc) if is_published else None,
         created_by_id=current_user.id,
     )
 
@@ -183,6 +184,7 @@ async def publish_resource(resource_id: uuid.UUID, db: AsyncSession = Depends(ge
 
     resource.is_published = True
     resource.scheduled_publish_at = None
+    resource.published_at = datetime.now(timezone.utc)
     db.add(resource)
     return resource
 

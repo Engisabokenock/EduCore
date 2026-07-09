@@ -65,6 +65,7 @@ class AcademicResource(Base):
 
     # Publishing Workflows
     scheduled_publish_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Telemetry and Engagement Tracking Metrics
     views_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

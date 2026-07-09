@@ -86,6 +86,7 @@ export interface Resource {
   views_count: number;
   downloads_count: number;
   is_published: boolean;
+  published_at: string | null;
   created_at: string;
   file?: string;
   can_access?: boolean;

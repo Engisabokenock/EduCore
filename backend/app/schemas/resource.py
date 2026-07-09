@@ -75,6 +75,7 @@ class ResourceOut(BaseModel):
     is_published: bool
     is_archived: bool
     scheduled_publish_at: Optional[datetime]
+    published_at: Optional[datetime] = None
     views_count: int
     downloads_count: int
     created_by_id: UUID
