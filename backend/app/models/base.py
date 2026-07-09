@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
 from sqlalchemy import String, DateTime, Enum as SQLEnum, Boolean, ForeignKey, Table, Column
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -96,7 +97,7 @@ class Profile(Base):
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     avatar_url: Mapped[str] = mapped_column(String(512), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(30), nullable=True)
-    metadata_fields: Mapped[dict] = mapped_column(String, default={}, nullable=False) # Stores custom preferences / regional school tags
+    metadata_fields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False) # Stores custom preferences / regional school tags
 
     user: Mapped[User] = relationship(back_populates="profile")
 
