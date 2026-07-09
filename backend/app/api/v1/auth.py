@@ -84,8 +84,10 @@ async def register(payload: RegistrationRequest, db: AsyncSession = Depends(get_
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(session_record)
+    await db.flush()
 
     await AsyncEmailEngine.send_verification_email(new_user.email, verification_token)
+    await db.commit()
     return {"tokens": {"access": access, "refresh": refresh}, "user": _user_public(new_user)}
 
 @router.post("/login", response_model=AuthResultSchema)
