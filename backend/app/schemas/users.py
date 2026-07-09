@@ -6,8 +6,12 @@ from app.models.base import UserRole
 class RegistrationRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, description="Secured application standards dictate min length 8")
-    full_name: str = Field(..., min_length=1, max_length=100)
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    phone: Optional[str] = Field(None, max_length=30)
     role: UserRole = UserRole.STUDENT
+    password_confirm: Optional[str] = None
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

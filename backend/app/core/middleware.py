@@ -6,6 +6,21 @@ from starlette.middleware.base import BaseHTTPMiddleware
 logger = logging.getLogger("educore.security.audit")
 
 
+class TrailingSlashMiddleware(BaseHTTPMiddleware):
+    """
+    Normalizes request paths so trailing-slash URLs (e.g. ``/auth/register/``)
+    resolve to their non-slash route definitions (``/auth/register``).
+
+    The Next.js client consistently calls paths with a trailing slash; this keeps
+    the backend route definitions clean without per-route slash aliases.
+    """
+    async def dispatch(self, request: Request, call_next) -> Response:
+        path = request.scope.get("path", "")
+        if len(path) > 1 and path.endswith("/"):
+            request.scope["path"] = path.rstrip("/")
+        return await call_next(request)
+
+
 class ContentSanitizationMiddleware(BaseHTTPMiddleware):
     """
     Blocks Cross-Site Scripting (XSS) vectors.

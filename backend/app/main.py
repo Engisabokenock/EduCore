@@ -8,6 +8,7 @@ from app.core.middleware import (
     ContentSanitizationMiddleware,
     ProductionSecurityHeadersMiddleware,
     StructuralAuditLoggerMiddleware,
+    TrailingSlashMiddleware,
 )
 from app.core.cache import redis_pool
 from app.core.compress import configure_compression_layers
@@ -74,6 +75,7 @@ app.add_exception_handler(Exception, global_catchall_handler)
 # -------------------------------------------------------------------------
 # HIGH-SECURITY CUSTOM MIDDLEWARE INJECTIONS
 # -------------------------------------------------------------------------
+app.add_middleware(TrailingSlashMiddleware)
 app.add_middleware(ContentSanitizationMiddleware)
 app.add_middleware(ProductionSecurityHeadersMiddleware)
 app.add_middleware(StructuralAuditLoggerMiddleware)
