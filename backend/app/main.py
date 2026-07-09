@@ -60,7 +60,8 @@ app = FastAPI(
 # -------------------------------------------------------------------------
 ALLOWED_ORIGINS = ["https://educore.io"]
 if settings.FRONTEND_URL:
-    ALLOWED_ORIGINS.append(settings.FRONTEND_URL)
+    origins = [o.strip() for o in settings.FRONTEND_URL.split(",") if o.strip()]
+    ALLOWED_ORIGINS.extend(origins)
 
 app.add_middleware(
     CORSMiddleware,
