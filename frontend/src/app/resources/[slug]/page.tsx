@@ -175,14 +175,14 @@ export default async function ResourceDetailPage({ params }: Props) {
                 <p className="text-xs text-gray-400 mb-1">Downloads</p>
                 <p className="font-medium text-gray-800 text-sm flex items-center gap-1">
                   <Download className="h-3.5 w-3.5 text-gray-400" />
-                  {resource.download_count ?? 0}
+                  {resource.downloads_count ?? 0}
                 </p>
               </div>
               <div className="p-4">
                 <p className="text-xs text-gray-400 mb-1">Views</p>
                 <p className="font-medium text-gray-800 text-sm flex items-center gap-1">
                   <Eye className="h-3.5 w-3.5 text-gray-400" />
-                  {resource.view_count ?? 0}
+                  {resource.views_count ?? 0}
                 </p>
               </div>
               {sizeKb && (

@@ -96,7 +96,7 @@ async function getGrades(): Promise<Grade[]> {
 async function getFeaturedResources(): Promise<Resource[]> {
   const data = await serverApi.getResources({
     is_published: "true",
-    ordering: "-download_count",
+    ordering: "-downloads_count",
     page_size: "6",
   });
   if (!data || !Array.isArray(data.results)) return [];
@@ -159,7 +159,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
         {resource.subject?.name && <span>{resource.subject.name}</span>}
       </div>
       <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
-        <span className="flex items-center gap-1"><Download className="h-3 w-3" /> {resource.download_count ?? 0}</span>
+        <span className="flex items-center gap-1"><Download className="h-3 w-3" /> {resource.downloads_count ?? 0}</span>
         <span className="flex items-center gap-1"><Star className="h-3 w-3" /> 4.8</span>
       </div>
     </div>
