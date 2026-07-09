@@ -1,6 +1,7 @@
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 import logging
+import traceback
 
 logger = logging.getLogger("educore.exceptions")
 
@@ -20,14 +21,19 @@ class AuthorizationError(AppBaseException):
         super().__init__(message, status_code=status.HTTP_403_FORBIDDEN)
 
 async def app_exception_handler(request: Request, exc: AppBaseException) -> JSONResponse:
+    logger.error("AppException: %s %s -> %s", request.method, request.url.path, exc.message)
     return JSONResponse(
         status_code=exc.status_code,
         content={"success": False, "error": exc.message}
     )
 
 async def global_catchall_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.error(f"Unhandled Runtime Exception: {str(exc)}", exc_info=True)
+    logger.error("Unhandled Runtime Exception: %s %s", request.url.path, traceback.format_exc(), exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"success": False, "error": "Internal System Error occurred."}
+        content={
+            "success": False,
+            "error": "Internal System Error occurred.",
+            "detail": str(exc) if request.url.path.startswith("/api/v1/auth/register") else None,
+        }
     )

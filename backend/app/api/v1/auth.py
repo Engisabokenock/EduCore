@@ -42,53 +42,59 @@ def _user_public(user: User) -> dict:
 
 @router.post("/register", response_model=AuthResultSchema, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegistrationRequest, db: AsyncSession = Depends(get_db)):
-    # Check uniqueness
-    existing = await db.execute(select(User).where(User.email == payload.email))
-    if existing.scalar_one_or_none():
-        raise AppBaseException("Email identity space occupied", status.HTTP_409_CONFLICT)
+    try:
+        # Check uniqueness
+        existing = await db.execute(select(User).where(User.email == payload.email))
+        if existing.scalar_one_or_none():
+            raise AppBaseException("Email identity space occupied", status.HTTP_409_CONFLICT)
 
-    # Locate targeted domain Role
-    role_res = await db.execute(select(Role).where(Role.name == payload.role))
-    role_entity = role_res.scalar_one_or_none()
-    if not role_entity:
-        # Emergency automated production bootstrapping if migration seeding was skipped
-        role_entity = Role(name=payload.role)
-        db.add(role_entity)
+        # Locate targeted domain Role
+        role_res = await db.execute(select(Role).where(Role.name == payload.role))
+        role_entity = role_res.scalar_one_or_none()
+        if not role_entity:
+            # Emergency automated production bootstrapping if migration seeding was skipped
+            role_entity = Role(name=payload.role)
+            db.add(role_entity)
+            await db.flush()
+
+        full_name = payload.full_name or f"{payload.first_name} {payload.last_name}".strip()
+        verification_token = secrets.token_urlsafe(32)
+
+        new_user = User(
+            email=payload.email,
+            hashed_password=hash_password(payload.password),
+            role_id=role_entity.id,
+            verification_token=verification_token,
+            is_verified=False,
+        )
+        new_user.role = role_entity
+        db.add(new_user)
         await db.flush()
 
-    full_name = payload.full_name or f"{payload.first_name} {payload.last_name}".strip()
-    verification_token = secrets.token_urlsafe(32)
+        profile = Profile(user_id=new_user.id, full_name=full_name, phone_number=payload.phone)
+        new_user.profile = profile
+        db.add(profile)
+        await db.flush()
 
-    new_user = User(
-        email=payload.email,
-        hashed_password=hash_password(payload.password),
-        role_id=role_entity.id,
-        verification_token=verification_token,
-        is_verified=False,
-    )
-    new_user.role = role_entity
-    db.add(new_user)
-    await db.flush()
+        access = create_jwt_token(new_user.id, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+        refresh = create_jwt_token(new_user.id, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS), is_refresh=True)
 
-    profile = Profile(user_id=new_user.id, full_name=full_name, phone_number=payload.phone)
-    new_user.profile = profile
-    db.add(profile)
-    await db.flush()
+        session_record = UserSession(
+            user_id=new_user.id,
+            refresh_token=refresh,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+        db.add(session_record)
+        await db.flush()
 
-    access = create_jwt_token(new_user.id, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    refresh = create_jwt_token(new_user.id, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS), is_refresh=True)
+        await AsyncEmailEngine.send_verification_email(new_user.email, verification_token)
+        await db.commit()
+        return {"tokens": {"access": access, "refresh": refresh}, "user": _user_public(new_user)}
+    except AppBaseException:
+        raise
+    except Exception as exc:
+        raise AppBaseException(f"Registration failed: {type(exc).__name__}: {exc}")
 
-    session_record = UserSession(
-        user_id=new_user.id,
-        refresh_token=refresh,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-    )
-    db.add(session_record)
-    await db.flush()
-
-    await AsyncEmailEngine.send_verification_email(new_user.email, verification_token)
-    await db.commit()
-    return {"tokens": {"access": access, "refresh": refresh}, "user": _user_public(new_user)}
 
 @router.post("/login", response_model=AuthResultSchema)
 async def login(payload: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
