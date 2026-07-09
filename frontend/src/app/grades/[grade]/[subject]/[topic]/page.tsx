@@ -105,7 +105,7 @@ function ResourceCard({ resource, gradeSlug, subjectSlug, topicSlug }: {
         )}
         <span className="flex items-center gap-1 ml-auto">
           <Download className="h-3 w-3" />
-          {resource.download_count ?? 0}
+          {resource.downloads_count ?? 0}
         </span>
       </div>
     </Link>
