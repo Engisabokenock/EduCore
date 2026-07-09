@@ -9,7 +9,7 @@ from app.models.base import UserRole
 from app.models.cbc import Grade, Subject, Topic, LearningOutcome, CurriculumResource
 from app.schemas.cbc import (
     GradeCreate, GradeOut, GradeDetailOut,
-    SubjectCreate, SubjectDetailOut,
+    SubjectCreate, SubjectOut, SubjectDetailOut,
     TopicCreate, TopicOut,
     LearningOutcomeCreate, LearningOutcomeOut,
     ResourceCreate, ResourceOut
