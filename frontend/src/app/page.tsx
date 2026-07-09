@@ -152,16 +152,12 @@ function ResourceCard({ resource }: { resource: Resource }) {
           )}
         </div>
       )}
-      <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 leading-snug">{resource.title}</h4>
-      <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
-        {resource.grade?.name && <span>{resource.grade.name}</span>}
-        {resource.subject?.name && <span className="text-gray-300">·</span>}
-        {resource.subject?.name && <span>{resource.subject.name}</span>}
-      </div>
+        <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 leading-snug">{resource.title}</h4>
       <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
         <span className="flex items-center gap-1"><Download className="h-3 w-3" /> {resource.downloads_count ?? 0}</span>
         <span className="flex items-center gap-1"><Star className="h-3 w-3" /> 4.8</span>
       </div>
+
     </div>
   );
 }
