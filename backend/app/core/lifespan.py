@@ -6,6 +6,23 @@ logger = logging.getLogger("educore.lifespan")
 
 async def startup_create_tables():
     """Ensure all ORM tables exist in the database on startup."""
-    async with engine.connect() as conn:
-        await conn.run_sync(lambda sync_conn: Base.metadata.create_all(sync_conn))
+    from app.models import (
+        base,
+        analytics,
+        cbc,
+        download,
+        grade,
+        notification,
+        payment,
+        resource,
+        review,
+        school,
+        subject,
+        subscription,
+        topic,
+        tracking,
+    )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables ensured via startup_create_tables")
