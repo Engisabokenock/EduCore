@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, or_, func, desc, update, delete
 from app.core.database import get_db
-from app.api.deps import RoleChecker
-from app.models.base import User, UserRole, Profile
+from app.api.deps import RoleChecker, PermissionGuard
+from app.models.base import User, UserRole, Profile, Role, DynamicPermission
+from app.models.notification import NotificationLog
 from app.models.resource import AcademicResource
 from app.models.payment import PaymentTransaction, TransactionStatus
 from app.models.subscription import UserSubscription, SubscriptionState
@@ -176,3 +177,70 @@ async def update_global_system_runtime_parameters(payload: SystemSettingsUpdateP
     """
     # Overwrites core environment values or coordinates updates with cache stores
     return {"status": "success", "message": "Global system parameters synchronized across all service runtimes"}
+
+# --- SECTION 7: ADVANCED ROLE HIERARCHY SECURITY CONTROL MATRIX ---
+
+security_router = APIRouter(prefix="/security-control-plane", tags=["Platform Infrastructure & Security Domain Control Matrix"])
+
+@security_router.patch("/users/{user_id}/override", response_model=UserAccountSchema)
+async def modify_user_role_assignment(
+    user_id: uuid.UUID,
+    payload: AdminUserUpdatePayload,
+    current_user: User = Depends(PermissionGuard(DynamicPermission.MANAGE_ROLES)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Secured Access Modification Flow.
+
+    Locks down identity changes, blocking lower administrators from elevating privileges
+    or altering Super Admin profiles.
+    """
+    target_user_stmt = select(User).where(User.id == user_id)
+    target_user_context = await db.execute(target_user_stmt)
+    target_user = target_user_context.scalar_one_or_none()
+
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user profile record trace not found")
+
+    if target_user.role.name == UserRole.SUPER_ADMIN:
+        if current_user.role.name != UserRole.SUPER_ADMIN:
+            raise AuthorizationError("Access denied: Business Administrators cannot modify the Platform Owner account")
+
+    if payload.role and payload.role == UserRole.SUPER_ADMIN:
+        if current_user.role.name != UserRole.SUPER_ADMIN:
+            raise AuthorizationError("Privilege Escalation Blocked: Only the Platform Owner can assign the Super Admin role")
+
+    if payload.role:
+        role_lookup_stmt = select(Role).where(Role.name == payload.role)
+        role_lookup_context = await db.execute(role_lookup_stmt)
+        target_role = role_lookup_context.scalar_one_or_none()
+        if not target_role:
+             raise HTTPException(status_code=400, detail="Requested role classification target missing from system tables")
+        target_user.role_id = target_role.id
+
+    if payload.is_active is not None:
+        target_user.is_active = payload.is_active
+
+    if payload.email:
+        target_user.email = payload.email
+
+    if payload.full_name and target_user.profile:
+        target_user.profile.full_name = payload.full_name
+
+    db.add(target_user)
+    await db.flush()
+    return target_user
+
+@security_router.get("/system/audit-trail", response_model=List[Any])
+async def view_infrastructure_security_audit_logs(
+    current_user: User = Depends(PermissionGuard(DynamicPermission.VIEW_AUDIT_LOGS)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Infrastructure Logging Core Pathway.
+
+    Restricted to authorized system operators. Provides access to connection logs, metadata strings, and transaction traces.
+    """
+    stmt = select(NotificationLog).order_by(NotificationLog.sent_at.desc()).limit(100)
+    res = await db.execute(stmt)
+    return res.scalars().all()

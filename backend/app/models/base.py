@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Optional, List
 from sqlalchemy import String, DateTime, Enum as SQLEnum, Boolean, ForeignKey, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -14,17 +15,42 @@ role_permissions = Table(
 )
 
 class UserRole(str, Enum):
-    ADMIN = "admin"
-    TEACHER = "teacher"
-    STUDENT = "student"
-    PARENT = "parent"
+    SUPER_ADMIN = "super_admin"  # Platform Owner - Complete Absolute Privilege
+    ADMIN = "admin"              # Business Administrator - Complete Operations Coverage
+    SCHOOL_ADMIN = "school_admin"# Institutional Principal - Scope Boundaries Enforced
+    TEACHER = "teacher"          # Educator - Classroom Domain Context Mapping
+    PARENT = "parent"            # External Monitor - Scoped Child Traversal Maps
+    STUDENT = "student"          # Standard Client Consumer - Read Asset Vectors Only
+
+class DynamicPermission(str, Enum):
+    # Core Infrastructure Privilege Matrix Boundaries (Reserved for Super Admin)
+    MANAGE_ADMINS = "manage_admins"
+    MANAGE_SECURITY = "manage_security"
+    MANAGE_SYSTEM = "manage_system"
+    VIEW_AUDIT_LOGS = "view_audit_logs"
+    MANAGE_ROLES = "manage_roles"
+
+    # Operational & Business Management Infrastructure Matrix (Shared Access Layer)
+    MANAGE_USERS = "manage_users"
+    MANAGE_RESOURCES = "manage_resources"
+    MANAGE_PAYMENTS = "manage_payments"
+    MANAGE_REVIEWS = "manage_reviews"
+    MANAGE_NOTIFICATIONS = "manage_notifications"
+    MANAGE_MARKETING = "manage_marketing"
+    MANAGE_REPORTS = "manage_reports"
+    MANAGE_SCHOOLS = "manage_schools"
+    MANAGE_TEACHERS = "manage_teachers"
+    MANAGE_STUDENTS = "manage_students"
+    MANAGE_SUBSCRIPTIONS = "manage_subscriptions"
+    MANAGE_AI = "manage_ai"
+    MANAGE_SETTINGS = "manage_settings"
 
 class Permission(Base):
     __tablename__ = "permissions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False) # e.g., "course:create"
-    description: Mapped[str] = mapped_column(String(255), nullable=True)
+    name: Mapped[DynamicPermission] = mapped_column(SQLEnum(DynamicPermission), unique=True, index=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
 class Role(Base):
     __tablename__ = "roles"

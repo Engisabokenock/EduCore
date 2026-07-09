@@ -32,7 +32,7 @@ def _user_public(user: User) -> dict:
         "first_name": parts[0],
         "last_name": parts[1] if len(parts) > 1 else "",
         "full_name": full_name,
-        "phone": profile.phone_number if profile else "",
+        "phone": profile.phone_number or "" if profile else "",
         "role": role.name if role else "student",
         "is_verified": user.is_verified,
         "date_joined": user.created_at.isoformat() if user.created_at else "",

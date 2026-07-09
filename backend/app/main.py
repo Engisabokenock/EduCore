@@ -26,7 +26,7 @@ from app.api.v1.notifications import router as notifications_v1_router
 from app.api.v1.reviews import router as reviews_v1_router
 from app.api.v1.analytics import router as analytics_v1_router
 from app.api.v1.schools import router as schools_v1_router
-from app.api.v1.admin_dashboard import router as admin_control_v1_router
+from app.api.v1.admin_dashboard import router as admin_control_v1_router, security_router as security_control_v1_router
 
 @asynccontextmanager
 async def application_lifetime_orchestrator(app: FastAPI):
@@ -99,6 +99,7 @@ app.include_router(reviews_v1_router, prefix="/api/v1")
 app.include_router(analytics_v1_router, prefix="/api/v1")
 app.include_router(schools_v1_router, prefix="/api/v1")
 app.include_router(admin_control_v1_router, prefix="/api/v1")
+app.include_router(security_control_v1_router, prefix="/api/v1")
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Infrastructure Monitoring"])
 async def runtime_health_clearance():
