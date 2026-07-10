@@ -60,8 +60,8 @@ def write_migration():
         f"DROP TABLE IF EXISTS {table.name} CASCADE;" for table in reversed(Base.metadata.sorted_tables)
     ]
 
-    upgrade_body = "\n".join(f'    op.execute(text("{stmt}"))' for stmt in upgrade_stmts)
-    downgrade_body = "\n".join(f'    op.execute(text("{stmt}"))' for stmt in downgrade_stmts)
+    upgrade_body = "\n".join(f'    op.execute(text("""{stmt}"""))' for stmt in upgrade_stmts)
+    downgrade_body = "\n".join(f'    op.execute(text("""{stmt}"""))' for stmt in downgrade_stmts)
 
     content = f'''"""Initial schema snapshot
 
