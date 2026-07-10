@@ -34,14 +34,6 @@ class ResourceUpdate(BaseModel):
     is_premium: Optional[bool] = None
     scheduled_publish_at: Optional[datetime] = None
 
-class PaginatedResourceResponse(BaseModel):
-    count: int
-    next: Optional[str] = None
-    previous: Optional[str] = None
-    total_pages: int
-    current_page: int
-    results: list[ResourceOut]
-
 class TagOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -112,3 +104,11 @@ class ResourceOut(BaseModel):
     @property
     def file_size(self) -> int:
         return 0
+
+class PaginatedResourceResponse(BaseModel):
+    count: int
+    next: Optional[str] = None
+    previous: Optional[str] = None
+    total_pages: int
+    current_page: int
+    results: list[ResourceOut]
