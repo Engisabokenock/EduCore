@@ -93,6 +93,26 @@ async def _seed_cbc_if_empty():
         logger.info("CBC seed complete")
 
 
+async def _add_missing_columns():
+    """Best-effort migration for CBC tables when the DB was created with an older model."""
+    statements = [
+        "ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS curriculum VARCHAR(20) DEFAULT 'CBC' NOT NULL",
+        "ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL",
+        "ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS \"order\" INTEGER DEFAULT 0 NOT NULL",
+        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS icon VARCHAR(10)",
+        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS color VARCHAR(50)",
+        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL",
+        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS \"order\" INTEGER DEFAULT 0 NOT NULL",
+        "ALTER TABLE cbc_topics ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL",
+    ]
+    async with engine.begin() as conn:
+        for stmt in statements:
+            try:
+                await conn.execute(stmt)
+            except Exception as exc:
+                logger.warning(f"Column migration skipped for statement: {stmt} ({exc})")
+
+
 async def startup_create_tables():
     """
     Ensure all ORM tables exist in the database on startup.
@@ -118,4 +138,5 @@ async def startup_create_tables():
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables ensured via startup_create_tables")
 
+    await _add_missing_columns()
     await _seed_cbc_if_empty()
