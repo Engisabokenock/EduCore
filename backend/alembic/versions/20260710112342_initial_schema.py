@@ -1,15 +1,16 @@
 """Initial schema snapshot
 
-Revision ID: 20260710111806
+Revision ID: 20260710112342
 Revises:
-Create Date: 2026-07-10T11:18:06.945086+00:00
+Create Date: 2026-07-10T11:23:42.998302+00:00
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 
-revision: str = '20260710111806'
+revision: str = '20260710112342'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
