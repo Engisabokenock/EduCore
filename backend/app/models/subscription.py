@@ -27,6 +27,10 @@ class SubscriptionPlan(Base):
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     duration_days: Mapped[int] = mapped_column(nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    features: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sort_order: Mapped[int] = mapped_column(default=0, nullable=False)
 
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"

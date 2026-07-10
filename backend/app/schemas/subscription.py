@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, List
+import json
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.models.subscription import PlanTier, SubscriptionState
 
 class SubscriptionPlanResponse(BaseModel):
@@ -13,6 +14,25 @@ class SubscriptionPlanResponse(BaseModel):
     price: float
     duration_days: int
     is_available: bool
+    description: Optional[str] = None
+    features: List[str] = []
+    is_featured: bool = False
+    sort_order: int = 0
+
+    @field_validator("features", mode="before")
+    @classmethod
+    def parse_features(cls, value):
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+            return [item.strip() for item in value.split(",") if item.strip()]
+        if value is None:
+            return []
+        return value
 
 class UserSubscriptionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
