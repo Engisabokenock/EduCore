@@ -76,7 +76,7 @@ export default async function SubjectPage({ params }: Props) {
                   <div className="flex items-center gap-4 text-xs text-gray-500">
                     <span className="flex items-center gap-1">
                       <Download className="h-3.5 w-3.5" />
-                      {topic.resources?.length ?? 0}
+                      {topic.resource_count}
                     </span>
                   </div>
                 </Link>

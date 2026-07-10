@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
+from sqlalchemy import func
+from sqlalchemy import func
 from uuid import UUID
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException
@@ -86,6 +88,18 @@ async def get_subject_tree(slug: str, db: AsyncSession = Depends(get_db)):
     subject = result.scalar_one_or_none()
     if not subject:
         raise AppBaseException("Subject record not found", 404)
+
+    if subject.topics:
+        topic_ids = [t.id for t in subject.topics]
+        count_rows = await db.execute(
+            select(CurriculumResource.topic_id, func.count())
+            .where(CurriculumResource.topic_id.in_(topic_ids))
+            .group_by(CurriculumResource.topic_id)
+        )
+        counts = {row[0]: row[1] for row in count_rows.all()}
+        for topic in subject.topics:
+            setattr(topic, "resource_count", counts.get(topic.id, 0))
+
     return subject
 
 # --- TOPIC ENDPOINTS ---

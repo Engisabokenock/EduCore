@@ -41,8 +41,8 @@ class TopicOut(BaseModel):
     ordering: int
     slug: str
     is_active: bool
+    resource_count: int = 0
     learning_outcomes: list[LearningOutcomeOut]
-    resources: list[ResourceOut]
 
 # --- Subject Schemas ---
 class SubjectCreate(BaseModel):

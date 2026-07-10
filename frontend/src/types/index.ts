@@ -63,6 +63,7 @@ export interface Topic {
   description: string;
   order: number;
   is_active: boolean;
+  resource_count: number;
 }
 
 export interface Resource {
