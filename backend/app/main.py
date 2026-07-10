@@ -35,6 +35,7 @@ from app.api.v1.analytics import router as analytics_router
 from app.api.v1.schools import router as schools_router
 from app.api.v1.admin_dashboard import router as admin_router, security_router as security_router
 from app.api.v1.portal_resources import router as portal_assets_router
+from app.api.v1.internal_control_plane import router as internal_control_plane_router
 
 
 @asynccontextmanager
@@ -99,6 +100,7 @@ app.include_router(schools_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(security_router, prefix="/api/v1")
 app.include_router(portal_assets_router, prefix="/api/v1")
+app.include_router(internal_control_plane_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health", status_code=status.HTTP_200_OK, tags=["Infrastructure Monitoring"])

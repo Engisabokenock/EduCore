@@ -20,7 +20,29 @@ pwd_context = CryptContext(
 )
 
 # Strictly constrained whitelist of allowed application signatures
-ALLOWED_MIME_TYPES = ["application/pdf"]
+ALLOWED_MIME_TYPES = [
+    "application/pdf",
+    # Office documents
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/csv",
+    # Legacy office formats
+    "application/msword",
+    "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint",
+    # Images
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    # Video
+    "video/mp4",
+    "video/quicktime",
+    # Archives
+    "application/zip",
+    "application/x-zip-compressed",
+]
 MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024  # 15 Megabytes Max Constraint
 
 def hash_password(password: str) -> str:

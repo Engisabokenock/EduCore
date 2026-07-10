@@ -4,45 +4,45 @@ from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.exceptions import AuthorizationError, AppBaseException
-from app.api.deps import get_current_active_user, PermissionGuard
-from app.models.base import User, UserRole, DynamicPermission
+from app.api.deps import get_current_active_user
+from app.models.base import User, UserRole
 from app.models.asset import PortalResource, ExtendedResourceType, WorkflowApprovalState, AssetVisibilityScope
 from app.models.subscription import UserSubscription, SubscriptionState
 from app.models.payment import PaymentTransaction, TransactionStatus
-from app.schemas.asset import ResourceUploadPayload, UnifiedResourceOut, MetadataUpdatePayload, ResourceModerationAction
+from app.schemas.asset import UnifiedResourceOut
 
-router = APIRouter(prefix="/portal-assets", tags=["Absolute Resource Access Core Verification Engine"])
+router = APIRouter(prefix="/portal-assets", tags=["Public Resource Discovery & Download Access"])
 
 
-@router.post("", response_model=UnifiedResourceOut, status_code=status.HTTP_201_CREATED)
-async def upload_educational_resource(
-    payload: ResourceUploadPayload,
-    current_user: User = Depends(get_current_active_user),
+@router.get("", response_model=List[UnifiedResourceOut])
+async def public_browse_resources(
+    category: Optional[ExtendedResourceType] = Query(None),
+    grade_id: Optional[uuid.UUID] = Query(None),
+    subject_id: Optional[uuid.UUID] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Enforces user capability matrix rules during file uploads.
+    Public discovery endpoint.
 
-    Restricts roles, determines draft states, and prevents unauthorized publication attempts.
+    Returns only published resources. Visibility filtering is applied here so the
+    frontend never receives unpublished or private assets from public routes.
     """
-    if current_user.role.name in [UserRole.STUDENT, UserRole.PARENT]:
-        raise AuthorizationError("Access Denied: Your account role is blocked from uploading resources")
-
-    starting_state = WorkflowApprovalState.DRAFT
-    if current_user.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
-        starting_state = WorkflowApprovalState.PUBLISHED
-
-    resource = PortalResource(
-        **payload.model_dump(),
-        approval_state=starting_state,
-        owner_id=current_user.id
+    stmt = select(PortalResource).where(
+        PortalResource.approval_state == WorkflowApprovalState.PUBLISHED
     )
-    db.add(resource)
-    await db.flush()
-    return resource
+
+    if category:
+        stmt = stmt.where(PortalResource.category == category)
+    if grade_id:
+        stmt = stmt.where(PortalResource.grade_id == grade_id)
+    if subject_id:
+        stmt = stmt.where(PortalResource.subject_id == subject_id)
+
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
 @router.get("/download-gate/{asset_id}", status_code=status.HTTP_200_OK)
@@ -52,10 +52,14 @@ async def evaluate_download_clearance_vault(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    The Absolute Source of Truth Access Validator.
+    The absolute source-of-truth download firewall.
 
-    Verifies object visibility, cross-checks active subscription balances,
-    and checks single-item receipt states. Returns a 403 Forbidden error if checks fail.
+    Checks:
+    1. Resource existence
+    2. Admin bypass
+    3. Approval/publishing state
+    4. Visibility scopes: private, school, registered, premium
+    5. Subscription and single-item purchase receipts
     """
     stmt = select(PortalResource).where(PortalResource.id == asset_id)
     asset = (await db.execute(stmt)).scalar_one_or_none()
@@ -76,7 +80,7 @@ async def evaluate_download_clearance_vault(
 
     if asset.visibility == AssetVisibilityScope.SCHOOL:
         if not hasattr(current_user, "school_id") or current_user.school_id != asset.school_id:
-             raise AuthorizationError("403 Forbidden: Resource access is restricted to members of the specific school")
+            raise AuthorizationError("403 Forbidden: Resource access is restricted to members of the specific school")
 
     if asset.visibility == AssetVisibilityScope.PREMIUM or not asset.is_free:
         if asset.requires_subscription:
@@ -94,53 +98,8 @@ async def evaluate_download_clearance_vault(
             )
         )
         if (await db.execute(payment_stmt)).scalar_one_or_none():
-             return {"clearance": "granted", "download_url": asset.file_url}
+            return {"clearance": "granted", "download_url": asset.file_url}
 
         raise AuthorizationError("403 Forbidden: Access Denied. Requires an active subscription package or a direct item purchase.")
 
     return {"clearance": "granted", "download_url": asset.file_url}
-
-
-@router.post("/moderation/{asset_id}/action", response_model=UnifiedResourceOut, dependencies=[Depends(PermissionGuard(DynamicPermission.MANAGE_SETTINGS))])
-async def manage_resource_workflow_state(
-    asset_id: uuid.UUID,
-    payload: ResourceModerationAction,
-    db: AsyncSession = Depends(get_db)
-):
-    """Allows administrators to approve, reject, or publish submitted teacher resources."""
-    stmt = select(PortalResource).where(PortalResource.id == asset_id)
-    asset = (await db.execute(stmt)).scalar_one_or_none()
-
-    if not asset:
-        raise AppBaseException("Target content asset records reference missing", 404)
-
-    asset.approval_state = payload.target_state
-    db.add(asset)
-    return asset
-
-
-@router.patch("/{asset_id}/metadata", response_model=UnifiedResourceOut)
-async def update_resource_metadata(
-    asset_id: uuid.UUID,
-    payload: MetadataUpdatePayload,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Enables self-service metadata corrections for teachers on drafts, or full modifications for admins."""
-    stmt = select(PortalResource).where(PortalResource.id == asset_id)
-    asset = (await db.execute(stmt)).scalar_one_or_none()
-
-    if not asset:
-         raise AppBaseException("Resource missing", 404)
-
-    if asset.owner_id != current_user.id and current_user.role.name not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
-        raise AuthorizationError("Access Denied: Insufficient metadata modification privileges")
-
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(asset, field, value)
-
-    if current_user.role.name == UserRole.TEACHER:
-        asset.approval_state = WorkflowApprovalState.PENDING_REVIEW
-
-    db.add(asset)
-    return asset
