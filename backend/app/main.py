@@ -15,7 +15,6 @@ from app.core.middleware import (
     TrailingSlashMiddleware,
 )
 from app.core.compress import configure_compression_layers
-from app.core.lifespan import startup_create_tables
 from app.api.deps import sliding_window_rate_limiter
 
 # -------------------------------------------------------------------------
@@ -41,7 +40,6 @@ from app.api.v1.internal_control_plane import router as internal_control_plane_r
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handles low-overhead pooling connect and teardown loops cleanly."""
-    await startup_create_tables()
     yield
     await engine.dispose()
     await redis_pool.disconnect()
