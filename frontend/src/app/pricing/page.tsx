@@ -58,7 +58,7 @@ export default async function PricingPage() {
                   </span>
                   {Number(plan.price) > 0 && (
                     <span className="text-gray-400 text-sm ml-1">
-                      /{plan.tier === "monthly" ? "mo" : plan.tier === "annual" ? "yr" : plan.tier === "quarterly" ? "qr" : "wk"}
+                      /{plan.tier === "monthly" ? "mo" : plan.tier === "yearly" ? "yr" : plan.tier === "quarterly" ? "qr" : "wk"}
                     </span>
                   )}
                 </div>
