@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from sqlalchemy import String, ForeignKey, Text, Enum as SQLEnum, DateTime
+from sqlalchemy import String, ForeignKey, Text, Enum as SQLEnum, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -15,10 +15,13 @@ class Grade(Base):
     __tablename__ = "cbc_grades"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False) # e.g., "Grade 1", "PP1"
-    code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False) # e.g., "G1", "PP1"
+    name: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     slug: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    curriculum: Mapped[str] = mapped_column(String(20), default="CBC", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    order: Mapped[int] = mapped_column(default=0, nullable=False)
 
     # Cascade relationships downstream
     subjects: Mapped[list["Subject"]] = relationship(
@@ -30,10 +33,14 @@ class Subject(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     grade_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cbc_grades.id", ondelete="CASCADE"), nullable=False)
-    name: Mapped[str] = mapped_column(String(100), index=True, nullable=False) # e.g., "Mathematics Activities"
-    code: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False) # e.g., "G1-MATH"
+    name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    icon: Mapped[str] = mapped_column(String(10), nullable=True)
+    color: Mapped[str] = mapped_column(String(50), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    order: Mapped[int] = mapped_column(default=0, nullable=False)
 
     grade: Mapped[Grade] = relationship(back_populates="subjects")
     topics: Mapped[list["Topic"]] = relationship(
@@ -45,9 +52,10 @@ class Topic(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cbc_subjects.id", ondelete="CASCADE"), nullable=False)
-    name: Mapped[str] = mapped_column(String(150), index=True, nullable=False) # e.g., "Numbers & Operations"
+    name: Mapped[str] = mapped_column(String(150), index=True, nullable=False)
     ordering: Mapped[int] = mapped_column(default=0, nullable=False)
     slug: Mapped[str] = mapped_column(String(150), unique=True, index=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     subject: Mapped[Subject] = relationship(back_populates="topics")
     learning_outcomes: Mapped[list["LearningOutcome"]] = relationship(
