@@ -81,7 +81,7 @@ class User(Base):
     # Relationships
     role: Mapped[Role] = relationship(lazy="selectin")
     profile: Mapped["Profile"] = relationship(back_populates="user", lazy="selectin")
-    sessions: Mapped[List[UserSession]] = relationship(back_populates="user")
+    sessions: Mapped[List["UserSession"]] = relationship(back_populates="user")
 
 class Profile(Base):
     __tablename__ = "profiles"
