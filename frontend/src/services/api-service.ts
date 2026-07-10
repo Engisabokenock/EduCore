@@ -40,8 +40,8 @@ export const academicService = {
 
   getGrade: (slug: string) => api.get<Grade>(`/academic/grades/${slug}/`),
 
-  getSubjects: (params?: { grade__slug?: string }) =>
-    api.get<Subject[]>("/academic/subjects/", { params }),
+  getSubjects: () =>
+    api.get<Subject[]>("/academic/subjects/"),
 
   getSubject: (slug: string) => api.get<Subject>(`/academic/subjects/${slug}/`),
 

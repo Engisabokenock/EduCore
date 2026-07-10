@@ -53,8 +53,8 @@ export const serverApi = {
 
   getGrade: (slug: string) => get<Grade>(`/academic/grades/${slug}/`),
 
-  getSubjects: (gradeSlug?: string) =>
-    get<Subject[]>("/academic/subjects/", gradeSlug ? { grade__slug: gradeSlug } : undefined),
+  getSubjects: () =>
+    get<Subject[]>("/academic/subjects/"),
 
   getSubject: (slug: string) => get<Subject>(`/academic/subjects/${slug}/`),
 

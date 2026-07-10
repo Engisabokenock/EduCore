@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function GradePage({ params }: Props) {
   const [grade, subjects] = await Promise.all([
     serverApi.getGrade(params.grade),
-    serverApi.getSubjects(params.grade),
+    serverApi.getSubjects(),
   ]);
 
   if (!grade) notFound();

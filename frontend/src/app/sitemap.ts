@@ -22,7 +22,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           priority: 0.8,
         });
 
-        const subjects = await serverApi.getSubjects(grade.slug);
+        const allSubjects = await serverApi.getSubjects();
+        const subjects = allSubjects?.filter((subject) => subject.grade?.slug === grade.slug) ?? [];
         if (subjects) {
           for (const subject of subjects) {
             urls.push({
