@@ -125,9 +125,9 @@ export default async function TopicPage({ params, searchParams }: Props) {
   if (!topic) notFound();
 
   const apiParams: Record<string, string> = {
-    grade_id: params.grade,
-    subject_id: params.subject,
-    topic_id: params.topic,
+    grade_id: grade.id,
+    subject_id: subject.id,
+    topic_id: topic.id,
     page_size: "24",
   };
   if (searchParams.type) apiParams.type = searchParams.type;
