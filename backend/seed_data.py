@@ -87,7 +87,7 @@ async def seed_grades(session):
             grade = Grade(
                 name=GRADE_NAMES[code],
                 code=code,
-                slug=code.lower(),
+                slug=f"grade-{int(code[1:])}",
                 description=f"CBC Curriculum {GRADE_NAMES[code]}",
                 curriculum="CBC",
                 is_active=True,

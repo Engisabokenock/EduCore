@@ -1,6 +1,6 @@
 """Application lifespan events."""
 import logging
-from app.core.database import Base, engine, AsyncSession
+from sqlalchemy import text
 from app.models import cbc
 
 logger = logging.getLogger("educore.lifespan")
@@ -96,14 +96,15 @@ async def _seed_cbc_if_empty():
 async def _add_missing_columns():
     """Best-effort migration for CBC tables when the DB was created with an older model."""
     statements = [
-        "ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS curriculum VARCHAR(20) DEFAULT 'CBC' NOT NULL",
-        "ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL",
-        "ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS \"order\" INTEGER DEFAULT 0 NOT NULL",
-        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS icon VARCHAR(10)",
-        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS color VARCHAR(50)",
-        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL",
-        "ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS \"order\" INTEGER DEFAULT 0 NOT NULL",
-        "ALTER TABLE cbc_topics ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL",
+        text('ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS slug VARCHAR(50)'),
+        text('ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS curriculum VARCHAR(20) DEFAULT \'CBC\' NOT NULL'),
+        text('ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL'),
+        text('ALTER TABLE cbc_grades ADD COLUMN IF NOT EXISTS "order" INTEGER DEFAULT 0 NOT NULL'),
+        text('ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS icon VARCHAR(10)'),
+        text('ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS color VARCHAR(50)'),
+        text('ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL'),
+        text('ALTER TABLE cbc_subjects ADD COLUMN IF NOT EXISTS "order" INTEGER DEFAULT 0 NOT NULL'),
+        text('ALTER TABLE cbc_topics ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE NOT NULL'),
     ]
     async with engine.begin() as conn:
         for stmt in statements:
