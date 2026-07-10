@@ -2,6 +2,8 @@
  * All TypeScript interfaces for the EduCore API.
  */
 
+export type UserRole = "super_admin" | "admin" | "school_admin" | "teacher" | "student" | "parent";
+
 export interface User {
   id: string;
   email: string;
@@ -9,7 +11,7 @@ export interface User {
   last_name: string;
   full_name: string;
   phone: string;
-  role: "admin" | "teacher" | "student" | "parent";
+  role: UserRole;
   is_verified: boolean;
   date_joined: string;
   profile: Profile | null;
@@ -168,4 +170,91 @@ export interface ApiError {
   status_code: number;
   detail: Record<string, string[]> | string;
   message: string;
+}
+
+// Admin types
+export interface AdminUser {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  phone: string;
+  role: UserRole;
+  is_verified: boolean;
+  date_joined: string;
+  profile: Profile | null;
+}
+
+export interface SystemSettings {
+  maintenance_mode: boolean;
+  daily_free_download_limit: number;
+  allowed_upload_extensions: string[];
+  grace_period_duration_days: number;
+  mpesa_fallback_routing_active: boolean;
+  last_recalculation_timestamp: string;
+}
+
+export interface AuditLog {
+  id: string;
+  event: string;
+  recipient: string;
+  timestamp: string;
+}
+
+export interface School {
+  id: string;
+  name: string;
+  registration_code: string;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Transaction {
+  id: string;
+  amount: string;
+  phone_number: string;
+  status: string;
+  mpesa_receipt_number: string | null;
+  created_at: string;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  tier: string;
+  price: number;
+  duration_days: number;
+  is_available: boolean;
+  description?: string;
+  features?: string[];
+  is_featured: boolean;
+  sort_order: number;
+}
+
+export interface UserSubscription {
+  id: string;
+  user_id: string;
+  plan: SubscriptionPlan;
+  status: string;
+  auto_renew: boolean;
+  current_period_start: string;
+  current_period_end: string;
+  grace_period_end: string | null;
+  created_at: string;
+}
+
+export interface BulkActionRequest {
+  target_ids: string[];
+  action: "archive" | "publish" | "purge" | "approve" | "reject";
+}
+
+export interface DashboardStats {
+  total_users: number;
+  active_subscriptions: number;
+  total_revenue: number;
+  pending_reviews: number;
+  total_resources: number;
+  total_schools: number;
 }
