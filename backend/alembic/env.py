@@ -1,7 +1,11 @@
 """Alembic migration environment."""
+import os
+import sys
 from logging.config import fileConfig
 
 from alembic import context
+
+sys.path.insert(0, os.path.abspath("."))
 
 from app.core.database import Base, engine
 
@@ -11,6 +15,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+if "DATABASE_URL" in os.environ:
+    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
 
 
 def run_migrations_offline() -> None:
