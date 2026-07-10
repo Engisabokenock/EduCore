@@ -66,7 +66,7 @@ export const serverApi = {
 
   getResource: (slug: string) => get<Resource>(`/resources/${slug}/`),
 
-  getPlans: () => get<Plan[]>("/commerce/plans/"),
+  getPlans: () => get<Plan[]>("/subscriptions/plans/"),
 
   search: (q: string, category?: string) =>
     get<SearchResults>("/search/", { q, ...(category ? { category } : {}) }),
