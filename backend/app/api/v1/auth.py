@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.core.database import get_db
@@ -167,9 +167,14 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     return _user_public(current_user)
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(refresh_token: str, db: AsyncSession = Depends(get_db)):
+async def logout(
+    refresh_token: str = Body(alias="refresh"),
+    db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(UserSession).where(UserSession.refresh_token == refresh_token))
     session = result.scalar_one_or_none()
     if session:
         session.is_revoked = True
         db.add(session)
+        await db.flush()
+    return

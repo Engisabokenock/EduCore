@@ -22,11 +22,12 @@ class PreferenceResponse(BaseModel):
 class NotificationLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
-    event_type: NotificationEvent
-    channel: NotificationChannel
-    recipient_address: str
+    notification_type: str
+    channel: str
     title: str
     body: str
-    is_sent: bool
-    failure_reason: Optional[str] = None
+    data: Optional[dict] = None
+    is_read: bool
     sent_at: datetime
+    read_at: Optional[datetime] = None
+    created_at: datetime

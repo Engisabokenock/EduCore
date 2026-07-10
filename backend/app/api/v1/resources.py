@@ -1,17 +1,19 @@
 import uuid
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import and_, or_, desc
+from sqlalchemy import and_, or_, desc, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthorizationError
 from app.api.deps import get_current_user, RoleChecker
 from app.models.base import User, UserRole
 from app.models.resource import AcademicResource, ContentTag, ResourceTypeVariant, AcademicTerm
-from app.schemas.resource import ResourceCreate, ResourceOut
+from app.models.tracking import DownloadLog
+from app.schemas.resource import ResourceCreate, ResourceOut, PaginatedResourceResponse
 from app.storage.r2 import StorageProvider
 
 router = APIRouter(prefix="/resources", tags=["Content Asset Management Engine"])
@@ -20,71 +22,74 @@ router = APIRouter(prefix="/resources", tags=["Content Asset Management Engine"]
 educator_or_admin_guard = Depends(RoleChecker([UserRole.ADMIN, UserRole.TEACHER]))
 
 
-@router.get("", response_model=list[ResourceOut])
+@router.get("", response_model=PaginatedResourceResponse)
 async def list_resources(
     db: AsyncSession = Depends(get_db),
     type: Optional[str] = Query(None),
     grade_id: Optional[str] = None,
     subject_id: Optional[str] = None,
-    topic_id: Optional[str] = None,  # Added for topic-level filtering from frontend
-    term: Optional[AcademicTerm] = None,  # Added for Term 1/2/3 filtering
-    year: Optional[int] = None,  # Added for year filtering
+    topic_id: Optional[str] = None,
+    term: Optional[AcademicTerm] = None,
+    year: Optional[int] = None,
     is_published: bool = True,
     ordering: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
 ):
-    """
-    Public resource listing with filters.
+    conditions = [
+        AcademicResource.is_archived == False,
+        AcademicResource.is_published == is_published,
+    ]
+    if type:
+        try:
+            conditions.append(AcademicResource.type_variant == ResourceTypeVariant(type))
+        except ValueError:
+            raise AppBaseException("Invalid resource type", 400)
+    if grade_id:
+        conditions.append(AcademicResource.grade_id == grade_id)
+    if subject_id:
+        conditions.append(AcademicResource.subject_id == subject_id)
+    if topic_id:
+        conditions.append(AcademicResource.topic_id == topic_id)
+    if term is not None:
+        conditions.append(AcademicResource.term == term)
+    if year is not None:
+        conditions.append(AcademicResource.year == year)
 
-    Supports filtering by:
-    - resource type (revision_paper, worksheet, exam, past_paper, etc.)
-    - grade, subject, topic IDs
-    - term (1, 2, 3) and year
-    - ordering by downloads, views, or creation date
-    """
-    stmt = select(AcademicResource).options(
+    base_stmt = select(AcademicResource).options(
         selectinload(AcademicResource.grade),
         selectinload(AcademicResource.subject),
         selectinload(AcademicResource.topic),
-    ).where(
-        and_(
-            AcademicResource.is_archived == False,
-            AcademicResource.is_published == is_published,
-        )
-    )
-
-    if type:
-        try:
-            stmt = stmt.where(AcademicResource.type_variant == ResourceTypeVariant(type))
-        except ValueError:
-            raise AppBaseException("Invalid resource type", 400)
-
-    if grade_id:
-        stmt = stmt.where(AcademicResource.grade_id == grade_id)
-    if subject_id:
-        stmt = stmt.where(AcademicResource.subject_id == subject_id)
-    if topic_id:
-        stmt = stmt.where(AcademicResource.topic_id == topic_id)
-    if term is not None:
-        stmt = stmt.where(AcademicResource.term == term)
-    if year is not None:
-        stmt = stmt.where(AcademicResource.year == year)
+    ).where(and_(*conditions))
 
     if ordering == "-downloads_count":
-        stmt = stmt.order_by(desc(AcademicResource.downloads_count))
+        base_stmt = base_stmt.order_by(desc(AcademicResource.downloads_count))
     elif ordering == "-views_count":
-        stmt = stmt.order_by(desc(AcademicResource.views_count))
+        base_stmt = base_stmt.order_by(desc(AcademicResource.views_count))
     elif ordering == "-created_at":
-        stmt = stmt.order_by(desc(AcademicResource.created_at))
+        base_stmt = base_stmt.order_by(desc(AcademicResource.created_at))
     else:
-        stmt = stmt.order_by(desc(AcademicResource.created_at))
+        base_stmt = base_stmt.order_by(desc(AcademicResource.created_at))
+
+    total = (await db.execute(select(func.count(AcademicResource.id)).where(and_(*conditions)))).scalar() or 0
 
     offset = (page - 1) * page_size
-    stmt = stmt.offset(offset).limit(page_size)
-
+    stmt = base_stmt.offset(offset).limit(page_size)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    items = result.scalars().all()
+
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    base_url = f"/resources"
+    return {
+        "count": total,
+        "next": f"{base_url}?page={page + 1}" if page < total_pages else None,
+        "previous": f"{base_url}?page={page - 1}" if page > 1 else None,
+        "total_pages": total_pages,
+        "current_page": page,
+        "results": items,
+    }
+
+
 
 
 @router.get("/{slug}", response_model=ResourceOut)
@@ -103,6 +108,53 @@ async def get_resource_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
     if not resource:
         raise AppBaseException("Resource record not found", 404)
     return resource
+
+
+@router.post("/{slug}/download", status_code=status.HTTP_200_OK)
+async def request_download_by_slug(
+    slug: str,
+    request: Request,
+    user_context: Optional[User] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public download request by slug.
+
+    Returns a clearance token and the PDF URL for the frontend to use.
+    Premium access checks are enforced.
+    """
+    res = await db.execute(select(AcademicResource).where(AcademicResource.slug == slug))
+    resource = res.scalar_one_or_none()
+    if not resource or resource.is_archived:
+        raise AppBaseException("Resource record not found", 404)
+
+    if resource.is_premium:
+        if not user_context:
+            raise AuthorizationError("Premium content requires authentication")
+        if user_context.role.name not in [UserRole.ADMIN, UserRole.TEACHER]:
+            raise AuthorizationError("Active subscription required for premium content")
+
+    ip_addr = request.client.host if request.client else "0.0.0.0"
+    user_agent = request.headers.get("user-agent", "Unknown")
+    country_code = request.headers.get("cf-ipcountry", "KE")[:3].upper()
+
+    db.add(
+        DownloadLog(
+            resource_id=resource.id,
+            user_id=user_context.id if user_context else None,
+            ip_address=ip_addr,
+            device_fingerprint=user_agent[:512],
+            country_code=country_code,
+        )
+    )
+    resource.downloads_count += 1
+    db.add(resource)
+    await db.flush()
+
+    return {
+        "url": resource.pdf_url,
+        "download_clearance_token": secrets.token_urlsafe(32),
+    }
 
 
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED, dependencies=[educator_or_admin_guard])

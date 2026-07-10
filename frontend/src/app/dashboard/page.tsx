@@ -46,7 +46,7 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const hasActiveSub = subscriptionData?.data?.is_active;
+  const hasActiveSub = ["active", "grace_period"].includes(subscriptionData?.data?.status);
 
   return (
     <div className="min-h-screen bg-gray-50">

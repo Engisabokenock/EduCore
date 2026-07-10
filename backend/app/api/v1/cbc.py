@@ -102,6 +102,31 @@ async def get_subject_tree(slug: str, db: AsyncSession = Depends(get_db)):
 
     return subject
 
+@router.get("/subjects/{slug}/topics", response_model=list[TopicOut])
+async def list_subject_topics(slug: str, db: AsyncSession = Depends(get_db)):
+    """Public endpoint: list all topics for a subject."""
+    sub_res = await db.execute(
+        select(Subject)
+        .options(selectinload(Subject.topics))
+        .where(Subject.slug == slug)
+    )
+    subject = sub_res.scalar_one_or_none()
+    if not subject:
+        raise AppBaseException("Subject record not found", 404)
+
+    if subject.topics:
+        topic_ids = [t.id for t in subject.topics]
+        count_rows = await db.execute(
+            select(CurriculumResource.topic_id, func.count())
+            .where(CurriculumResource.topic_id.in_(topic_ids))
+            .group_by(CurriculumResource.topic_id)
+        )
+        counts = {row[0]: row[1] for row in count_rows.all()}
+        for topic in subject.topics:
+            setattr(topic, "resource_count", counts.get(topic.id, 0))
+
+    return subject.topics
+
 # --- TOPIC ENDPOINTS ---
 @router.post("/subjects/{subject_id}/topics", response_model=TopicOut, status_code=status.HTTP_201_CREATED, dependencies=[educator_or_admin_protect])
 async def create_topic(subject_id: UUID, payload: TopicCreate, db: AsyncSession = Depends(get_db)):

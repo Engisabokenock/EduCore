@@ -97,24 +97,25 @@ export interface Resource {
 export interface Plan {
   id: string;
   name: string;
-  slug: string;
-  description: string;
-  price: string;
-  billing_cycle: "monthly" | "annual" | "lifetime";
+  tier: "weekly" | "monthly" | "quarterly" | "yearly";
+  price: number;
+  duration_days: number;
+  is_available: boolean;
   features: string[];
   is_featured: boolean;
   sort_order: number;
+  description?: string;
 }
 
 export interface Subscription {
   id: string;
+  user_id: string;
   plan: Plan;
-  status: "active" | "expired" | "cancelled" | "pending";
-  started_at: string | null;
-  expires_at: string | null;
+  status: "active" | "expired" | "cancelled" | "pending" | "grace_period";
   auto_renew: boolean;
-  is_active: boolean;
-  created_at: string;
+  current_period_start: string;
+  current_period_end: string;
+  grace_period_end: string | null;
 }
 
 export interface Payment {

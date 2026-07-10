@@ -163,7 +163,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
 }
 
 function PlanCard({ plan }: { plan: Plan }) {
-  const monthly = plan.billing_cycle === "monthly";
+  const tierLabel = plan.tier === "monthly" ? "mo" : plan.tier === "yearly" ? "yr" : plan.tier === "quarterly" ? "qr" : "wk";
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-all p-6 flex flex-col">
       <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
@@ -172,10 +172,10 @@ function PlanCard({ plan }: { plan: Plan }) {
           MOST POPULAR
         </span>
       )}
-      <p className="text-sm text-gray-500 mt-2 flex-1">{plan.description}</p>
+      <p className="text-sm text-gray-500 mt-2 flex-1">{plan.name}</p>
       <div className="mt-4">
         <span className="text-2xl font-extrabold text-gray-900">KES {plan.price}</span>
-        <span className="text-sm text-gray-400">/{monthly ? "mo" : "yr"}</span>
+        <span className="text-sm text-gray-400">/{tierLabel}</span>
       </div>
       <ul className="mt-4 space-y-2">
         {(plan.features ?? []).slice(0, 5).map((f) => (
@@ -186,7 +186,7 @@ function PlanCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
       <Link
-        href={monthly ? "/checkout?plan=monthly" : "/checkout?plan=annual"}
+        href={`/checkout?plan=${plan.id}`}
         className={`mt-6 text-center block w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
           plan.is_featured
             ? "bg-primary-800 text-white hover:bg-primary-900"

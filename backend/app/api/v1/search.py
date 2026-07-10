@@ -1,15 +1,19 @@
 import hashlib
 import json
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, or_, func, desc
 from app.core.database import get_db
 from app.core.cache import CacheManager
 from app.models.resource import AcademicResource
+from app.models.cbc import Grade, Subject, Topic
 from app.schemas.search import SearchFilterPayload, PaginatedSearchResults, SearchSortOrder
 from app.schemas.resource import ResourceOut
+from app.schemas.cbc import GradeOut, SubjectOut, TopicOut
+
+from app.schemas.cbc import GradeOut, SubjectOut, TopicOut
 
 router = APIRouter(prefix="/search", tags=["High-Performance Search Optimization Pipeline Engine"])
 
@@ -137,3 +141,98 @@ async def execute_advanced_curriculum_search(
     await CacheManager.set(cache_key, cacheable_response, expire_seconds=SEARCH_CACHE_TTL_SECONDS)
 
     return cacheable_response
+
+
+@router.get("", status_code=status.HTTP_200_OK)
+async def public_search(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    q: str = Query("", min_length=1),
+    category: Optional[str] = Query(None),
+):
+    """
+    Public search endpoint used by frontend pages.
+
+    Accepts query params:
+    - q: search keyword
+    - category: optional filter (resources, grades, subjects, topics, all)
+
+    Returns multi-category results:
+    {
+      "query": str,
+      "category": str | null,
+      "resources": ResourceOut[],
+      "grades": GradeOut[],
+      "subjects": SubjectOut[],
+      "topics": TopicOut[]
+    }
+    """
+    keyword = f"%{q.strip().lower()}%"
+    category = (category or "").strip().lower()
+
+    results: dict = {
+        "query": q.strip(),
+        "category": category or None,
+        "resources": [],
+        "grades": [],
+        "subjects": [],
+        "topics": [],
+    }
+
+    if category in ("", "all", "resources"):
+        res_stmt = (
+            select(AcademicResource)
+            .options(
+                selectinload(AcademicResource.grade),
+                selectinload(AcademicResource.subject),
+                selectinload(AcademicResource.topic),
+            )
+            .where(
+                and_(
+                    AcademicResource.is_archived == False,
+                    AcademicResource.is_published == True,
+                    or_(
+                        func.lower(AcademicResource.title).like(keyword),
+                        func.lower(AcademicResource.description).like(keyword),
+                    ),
+                )
+            )
+            .order_by(desc(AcademicResource.downloads_count))
+            .limit(20)
+        )
+        resources = (await db.execute(res_stmt)).scalars().all()
+        results["resources"] = [ResourceOut.model_validate(r).model_dump(mode="json") for r in resources]
+
+    if category in ("", "all", "grades"):
+        grade_stmt = (
+            select(Grade)
+            .where(func.lower(Grade.name).like(keyword))
+            .order_by(Grade.name)
+            .limit(10)
+        )
+        grades = (await db.execute(grade_stmt)).scalars().all()
+        results["grades"] = [GradeOut.model_validate(g).model_dump(mode="json") for g in grades]
+
+    if category in ("", "all", "subjects"):
+        subject_stmt = (
+            select(Subject)
+            .options(selectinload(Subject.grade))
+            .where(func.lower(Subject.name).like(keyword))
+            .order_by(Subject.name)
+            .limit(10)
+        )
+        subjects = (await db.execute(subject_stmt)).scalars().all()
+        results["subjects"] = [SubjectOut.model_validate(s).model_dump(mode="json") for s in subjects]
+
+    if category in ("", "all", "topics"):
+        topic_stmt = (
+            select(Topic)
+            .options(selectinload(Topic.subject))
+            .where(func.lower(Topic.name).like(keyword))
+            .order_by(Topic.name)
+            .limit(10)
+        )
+        topics = (await db.execute(topic_stmt)).scalars().all()
+        results["topics"] = [TopicOut.model_validate(t).model_dump(mode="json") for t in topics]
+
+    return results

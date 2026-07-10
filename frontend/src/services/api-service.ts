@@ -22,14 +22,14 @@ export const authService = {
   me: () => api.get<User>("/auth/me/"),
 
   changePassword: (old_password: string, new_password: string, new_password_confirm: string) =>
-    api.post("/auth/change-password/", { old_password, new_password, new_password_confirm }),
+    api.post("/users/me/change-password/", { old_password, new_password, new_password_confirm }),
 
-  forgotPassword: (email: string) => api.post("/auth/forgot-password/", { email }),
+  forgotPassword: (email: string) => api.post("/users/forgot-password/", { email }),
 
   resetPassword: (token: string, new_password: string, new_password_confirm: string) =>
-    api.post("/auth/reset-password/", { token, new_password, new_password_confirm }),
+    api.post("/users/reset-password/", { token, new_password, new_password_confirm }),
 
-  verifyEmail: (token: string) => api.get(`/auth/verify-email/?token=${token}`),
+  verifyEmail: (token: string) => api.get(`/users/verify-email/?token=${token}`),
 };
 
 // ── Academic ──────────────────────────────────────────────────────────────────
@@ -64,36 +64,30 @@ export const contentService = {
     api.post<{ url: string }>(`/resources/${slug}/download/`),
 
   getMyDownloads: (page?: number) =>
-    api.get("/resources/my-downloads/", { params: { page } }),
+    api.get("/downloads/history/", { params: { page } }),
 };
 
 // ── Commerce ─────────────────────────────────────────────────────────────────
 
 export const commerceService = {
-  getPlans: () => api.get<Plan[]>("/commerce/plans/"),
+  getPlans: () => api.get<Plan[]>("/subscriptions/plans/"),
 
-  getSubscription: () => api.get<Subscription>("/commerce/subscription/"),
+  getSubscription: () => api.get<Subscription>("/subscriptions/me/"),
 
-  initiatePayment: (plan_id: string, phone_number: string, coupon_code?: string) =>
-    api.post("/commerce/pay/", { plan_id, phone_number, coupon_code }),
+  initiatePayment: (plan_id: string, phone_number: string) =>
+    api.post("/payments/buy-premium/", { plan_id, phone_number }),
 
-  validateCoupon: (code: string, plan_id: string) =>
-    api.post("/commerce/validate-coupon/", { code, plan_id }),
-
-  getMyPayments: () => api.get("/commerce/payments/"),
+  getMyPayments: () => api.get("/payments/history/"),
 };
 
 // ── Community ─────────────────────────────────────────────────────────────────
 
 export const communityService = {
-  getReviews: (resource?: string) =>
-    api.get("/reviews/", { params: { resource } }),
+  getReviews: (resourceId: string) =>
+    api.get(`/reviews/resource/${resourceId}/`),
 
   createReview: (data: { resource: string; rating: number; comment?: string }) =>
     api.post("/reviews/", data),
-
-  getResourceRating: (resourceId: string) =>
-    api.get(`/reviews/resource/${resourceId}/rating/`),
 };
 
 // ── Notifications ─────────────────────────────────────────────────────────────

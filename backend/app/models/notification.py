@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Boolean, Index, Enum as SQLEnum, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -41,11 +42,14 @@ class NotificationLog(Base):
     channel: Mapped[NotificationChannel] = mapped_column(SQLEnum(NotificationChannel), nullable=False)
 
     # Payload Metrics
-    recipient_address: Mapped[str] = mapped_column(String(255), nullable=False) # Phone number or email string
+    recipient_address: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    data: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict, nullable=True)
 
     # Status Vectors
     is_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_reason: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
