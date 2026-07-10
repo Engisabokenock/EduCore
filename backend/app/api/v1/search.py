@@ -14,8 +14,6 @@ from app.schemas.search import SearchFilterPayload, PaginatedSearchResults, Sear
 from app.schemas.resource import ResourceOut
 from app.schemas.cbc import GradeOut, SubjectOut, TopicOut
 
-from app.schemas.cbc import GradeOut, SubjectOut, TopicOut
-
 router = APIRouter(prefix="/search", tags=["High-Performance Search Optimization Pipeline Engine"])
 
 # High-frequency read path: cache identical searches for 10 minutes to offload the database.

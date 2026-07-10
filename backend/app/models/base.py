@@ -80,7 +80,7 @@ class User(Base):
 
     # Relationships
     role: Mapped[Role] = relationship(lazy="selectin")
-    profile: Mapped[Profile] = relationship(back_populates="user")
+    profile: Mapped["Profile"] = relationship(back_populates="user", lazy="selectin")
     sessions: Mapped[List[UserSession]] = relationship(back_populates="user")
 
 class Profile(Base):
@@ -91,11 +91,10 @@ class Profile(Base):
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     avatar_url: Mapped[str] = mapped_column(String(512), nullable=True)
     phone_number: Mapped[str] = mapped_column(String(30), nullable=True)
-    # JSONB used so metadata_fields can store dicts without PostgreSQL type errors.
-    # Previously this was String, which broke registration inserts passing {}.
-    metadata_fields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False) # Stores custom preferences / regional school tags
+    metadata_fields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="profile")
+
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
