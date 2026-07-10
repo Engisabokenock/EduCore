@@ -1,8 +1,8 @@
 """Initial schema snapshot
 
-Revision ID: 20260710112342
+Revision ID: 20260710114012
 Revises:
-Create Date: 2026-07-10T11:23:42.998302+00:00
+Create Date: 2026-07-10T11:40:12.816751+00:00
 """
 from typing import Sequence, Union
 
@@ -10,25 +10,24 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 
-revision: str = '20260710112342'
+revision: str = '20260710114012'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(text("""
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dynamicpermission') THEN CREATE TYPE dynamicpermission AS ENUM ('manage_admins', 'manage_security', 'manage_system', 'view_audit_logs', 'manage_roles', 'manage_users', 'manage_resources', 'manage_payments', 'manage_reviews', 'manage_notifications', 'manage_marketing', 'manage_reports', 'manage_schools', 'manage_teachers', 'manage_students', 'manage_subscriptions', 'manage_ai', 'manage_settings'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'plantier') THEN CREATE TYPE plantier AS ENUM ('weekly', 'monthly', 'quarterly', 'yearly'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notificationevent') THEN CREATE TYPE notificationevent AS ENUM ('payment_success', 'new_resource', 'subscription_expiry', 'password_reset', 'welcome'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notificationchannel') THEN CREATE TYPE notificationchannel AS ENUM ('email', 'sms', 'whatsapp', 'push'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscriptionstate') THEN CREATE TYPE subscriptionstate AS ENUM ('active', 'canceled', 'grace_period', 'expired'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'academicterm') THEN CREATE TYPE academicterm AS ENUM ('1', '2', '3'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'resourcetypevariant') THEN CREATE TYPE resourcetypevariant AS ENUM ('revision_paper', 'worksheet', 'exam', 'mock_exam', 'past_paper', 'lesson_note', 'marking_scheme', 'scheme_of_work', 'lesson_plan'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'resourcetype') THEN CREATE TYPE resourcetype AS ENUM ('document', 'video', 'audio', 'interactive'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'assignmentstatus') THEN CREATE TYPE assignmentstatus AS ENUM ('pending', 'submitted', 'graded'); END IF; END $$;
-    DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reviewmoderationstatus') THEN CREATE TYPE reviewmoderationstatus AS ENUM ('pending', 'approved', 'rejected'); END IF; END $$;
-    CREATE TABLE IF NOT EXISTS  cbc_grades (
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'dynamicpermission') THEN CREATE TYPE dynamicpermission AS ENUM ('manage_admins', 'manage_security', 'manage_system', 'view_audit_logs', 'manage_roles', 'manage_users', 'manage_resources', 'manage_payments', 'manage_reviews', 'manage_notifications', 'manage_marketing', 'manage_reports', 'manage_schools', 'manage_teachers', 'manage_students', 'manage_subscriptions', 'manage_ai', 'manage_settings'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'plantier') THEN CREATE TYPE plantier AS ENUM ('weekly', 'monthly', 'quarterly', 'yearly'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notificationevent') THEN CREATE TYPE notificationevent AS ENUM ('payment_success', 'new_resource', 'subscription_expiry', 'password_reset', 'welcome'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notificationchannel') THEN CREATE TYPE notificationchannel AS ENUM ('email', 'sms', 'whatsapp', 'push'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'subscriptionstate') THEN CREATE TYPE subscriptionstate AS ENUM ('active', 'canceled', 'grace_period', 'expired'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'academicterm') THEN CREATE TYPE academicterm AS ENUM ('1', '2', '3'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'resourcetypevariant') THEN CREATE TYPE resourcetypevariant AS ENUM ('revision_paper', 'worksheet', 'exam', 'mock_exam', 'past_paper', 'lesson_note', 'marking_scheme', 'scheme_of_work', 'lesson_plan'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'resourcetype') THEN CREATE TYPE resourcetype AS ENUM ('document', 'video', 'audio', 'interactive'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'assignmentstatus') THEN CREATE TYPE assignmentstatus AS ENUM ('pending', 'submitted', 'graded'); END IF; END $$;"))
+    op.execute(text("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reviewmoderationstatus') THEN CREATE TYPE reviewmoderationstatus AS ENUM ('pending', 'approved', 'rejected'); END IF; END $$;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  cbc_grades (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
 	code VARCHAR(20) NOT NULL, 
@@ -40,34 +39,34 @@ def upgrade() -> None:
 	PRIMARY KEY (id)
 )
 
-
-    ALTER TABLE IF EXISTS cbc_grades OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  content_tags (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS cbc_grades OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  content_tags (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
 	PRIMARY KEY (id)
 )
 
-
-    ALTER TABLE IF EXISTS content_tags OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  permissions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS content_tags OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  permissions (
 	id UUID NOT NULL, 
 	name dynamicpermission NOT NULL, 
 	description VARCHAR(255), 
 	PRIMARY KEY (id)
 )
 
-
-    ALTER TABLE IF EXISTS permissions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  roles (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS permissions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  roles (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
 	PRIMARY KEY (id)
 )
 
-
-    ALTER TABLE IF EXISTS roles OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  schools (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS roles OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  schools (
 	id UUID NOT NULL, 
 	name VARCHAR(255) NOT NULL, 
 	registration_code VARCHAR(100) NOT NULL, 
@@ -77,9 +76,9 @@ def upgrade() -> None:
 	PRIMARY KEY (id)
 )
 
-
-    ALTER TABLE IF EXISTS schools OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  subscription_plans (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS schools OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  subscription_plans (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
 	tier plantier NOT NULL, 
@@ -94,9 +93,9 @@ def upgrade() -> None:
 	UNIQUE (tier)
 )
 
-
-    ALTER TABLE IF EXISTS subscription_plans OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  cbc_subjects (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS subscription_plans OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  cbc_subjects (
 	id UUID NOT NULL, 
 	grade_id UUID NOT NULL, 
 	name VARCHAR(100) NOT NULL, 
@@ -111,9 +110,9 @@ def upgrade() -> None:
 	FOREIGN KEY(grade_id) REFERENCES cbc_grades (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS cbc_subjects OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  role_permissions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS cbc_subjects OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  role_permissions (
 	role_id UUID NOT NULL, 
 	permission_id UUID NOT NULL, 
 	PRIMARY KEY (role_id, permission_id), 
@@ -121,9 +120,9 @@ def upgrade() -> None:
 	FOREIGN KEY(permission_id) REFERENCES permissions (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS role_permissions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  users (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS role_permissions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  users (
 	id UUID NOT NULL, 
 	email VARCHAR(255) NOT NULL, 
 	hashed_password VARCHAR(255) NOT NULL, 
@@ -134,9 +133,9 @@ def upgrade() -> None:
 	FOREIGN KEY(role_id) REFERENCES roles (id) ON DELETE RESTRICT
 )
 
-
-    ALTER TABLE IF EXISTS users OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  cbc_topics (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS users OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  cbc_topics (
 	id UUID NOT NULL, 
 	subject_id UUID NOT NULL, 
 	name VARCHAR(150) NOT NULL, 
@@ -147,9 +146,9 @@ def upgrade() -> None:
 	FOREIGN KEY(subject_id) REFERENCES cbc_subjects (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS cbc_topics OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  classrooms (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS cbc_topics OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  classrooms (
 	id UUID NOT NULL, 
 	school_id UUID NOT NULL, 
 	grade_id UUID NOT NULL, 
@@ -162,9 +161,9 @@ def upgrade() -> None:
 	FOREIGN KEY(class_teacher_id) REFERENCES users (id) ON DELETE SET NULL
 )
 
-
-    ALTER TABLE IF EXISTS classrooms OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  notification_logs (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS classrooms OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  notification_logs (
 	id UUID NOT NULL, 
 	user_id UUID, 
 	event_type notificationevent NOT NULL, 
@@ -182,9 +181,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE SET NULL
 )
 
-
-    ALTER TABLE IF EXISTS notification_logs OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  notification_preferences (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS notification_logs OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  notification_preferences (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
 	event_type notificationevent NOT NULL, 
@@ -194,9 +193,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS notification_preferences OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  payment_transactions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS notification_preferences OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  payment_transactions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
 	amount NUMERIC(10, 2) NOT NULL, 
@@ -213,9 +212,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE RESTRICT
 )
 
-
-    ALTER TABLE IF EXISTS payment_transactions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  premium_subscriptions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS payment_transactions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  premium_subscriptions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
 	is_active BOOLEAN NOT NULL, 
@@ -227,9 +226,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS premium_subscriptions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  profiles (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS premium_subscriptions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  profiles (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
 	full_name VARCHAR(100) NOT NULL, 
@@ -241,9 +240,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS profiles OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  user_sessions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS profiles OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  user_sessions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
 	refresh_token VARCHAR(512) NOT NULL, 
@@ -256,9 +255,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS user_sessions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  user_subscriptions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS user_sessions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  user_subscriptions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
 	plan_id UUID NOT NULL, 
@@ -275,9 +274,9 @@ def upgrade() -> None:
 	FOREIGN KEY(plan_id) REFERENCES subscription_plans (id) ON DELETE RESTRICT
 )
 
-
-    ALTER TABLE IF EXISTS user_subscriptions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  academic_resources (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS user_subscriptions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  academic_resources (
 	id UUID NOT NULL, 
 	title VARCHAR(255) NOT NULL, 
 	description TEXT, 
@@ -307,9 +306,9 @@ def upgrade() -> None:
 	FOREIGN KEY(created_by_id) REFERENCES users (id) ON DELETE RESTRICT
 )
 
-
-    ALTER TABLE IF EXISTS academic_resources OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  cbc_learning_outcomes (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS academic_resources OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  cbc_learning_outcomes (
 	id UUID NOT NULL, 
 	topic_id UUID NOT NULL, 
 	statement TEXT NOT NULL, 
@@ -318,9 +317,9 @@ def upgrade() -> None:
 	FOREIGN KEY(topic_id) REFERENCES cbc_topics (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS cbc_learning_outcomes OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  cbc_resources (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS cbc_learning_outcomes OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  cbc_resources (
 	id UUID NOT NULL, 
 	topic_id UUID NOT NULL, 
 	title VARCHAR(150) NOT NULL, 
@@ -331,9 +330,9 @@ def upgrade() -> None:
 	FOREIGN KEY(topic_id) REFERENCES cbc_topics (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS cbc_resources OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  class_assignments (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS cbc_resources OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  class_assignments (
 	id UUID NOT NULL, 
 	classroom_id UUID NOT NULL, 
 	subject_id UUID NOT NULL, 
@@ -349,9 +348,9 @@ def upgrade() -> None:
 	FOREIGN KEY(teacher_id) REFERENCES users (id) ON DELETE RESTRICT
 )
 
-
-    ALTER TABLE IF EXISTS class_assignments OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  classroom_enrollments (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS class_assignments OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  classroom_enrollments (
 	id UUID NOT NULL, 
 	classroom_id UUID NOT NULL, 
 	student_id UUID NOT NULL, 
@@ -361,9 +360,9 @@ def upgrade() -> None:
 	FOREIGN KEY(student_id) REFERENCES users (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS classroom_enrollments OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  assignment_submissions (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS classroom_enrollments OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  assignment_submissions (
 	id UUID NOT NULL, 
 	assignment_id UUID NOT NULL, 
 	student_id UUID NOT NULL, 
@@ -379,9 +378,9 @@ def upgrade() -> None:
 	FOREIGN KEY(student_id) REFERENCES users (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS assignment_submissions OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  download_logs (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS assignment_submissions OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  download_logs (
 	id UUID NOT NULL, 
 	resource_id UUID NOT NULL, 
 	user_id UUID, 
@@ -394,9 +393,9 @@ def upgrade() -> None:
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE SET NULL
 )
 
-
-    ALTER TABLE IF EXISTS download_logs OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  resource_reviews (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS download_logs OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  resource_reviews (
 	id UUID NOT NULL, 
 	resource_id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -415,9 +414,9 @@ def upgrade() -> None:
 	FOREIGN KEY(moderated_by_id) REFERENCES users (id) ON DELETE SET NULL
 )
 
-
-    ALTER TABLE IF EXISTS resource_reviews OWNER TO postgres;
-    CREATE TABLE IF NOT EXISTS  resource_tag_associations (
+"))
+    op.execute(text("ALTER TABLE IF EXISTS resource_reviews OWNER TO postgres;"))
+    op.execute(text("CREATE TABLE IF NOT EXISTS  resource_tag_associations (
 	resource_id UUID NOT NULL, 
 	tag_id UUID NOT NULL, 
 	PRIMARY KEY (resource_id, tag_id), 
@@ -425,38 +424,35 @@ def upgrade() -> None:
 	FOREIGN KEY(tag_id) REFERENCES content_tags (id) ON DELETE CASCADE
 )
 
-
-    ALTER TABLE IF EXISTS resource_tag_associations OWNER TO postgres;
-    """))
+"))
+    op.execute(text("ALTER TABLE IF EXISTS resource_tag_associations OWNER TO postgres;"))
 
 
 def downgrade() -> None:
-    op.execute(text("""
-    DROP TABLE IF EXISTS resource_tag_associations CASCADE;
-    DROP TABLE IF EXISTS resource_reviews CASCADE;
-    DROP TABLE IF EXISTS download_logs CASCADE;
-    DROP TABLE IF EXISTS assignment_submissions CASCADE;
-    DROP TABLE IF EXISTS classroom_enrollments CASCADE;
-    DROP TABLE IF EXISTS class_assignments CASCADE;
-    DROP TABLE IF EXISTS cbc_resources CASCADE;
-    DROP TABLE IF EXISTS cbc_learning_outcomes CASCADE;
-    DROP TABLE IF EXISTS academic_resources CASCADE;
-    DROP TABLE IF EXISTS user_subscriptions CASCADE;
-    DROP TABLE IF EXISTS user_sessions CASCADE;
-    DROP TABLE IF EXISTS profiles CASCADE;
-    DROP TABLE IF EXISTS premium_subscriptions CASCADE;
-    DROP TABLE IF EXISTS payment_transactions CASCADE;
-    DROP TABLE IF EXISTS notification_preferences CASCADE;
-    DROP TABLE IF EXISTS notification_logs CASCADE;
-    DROP TABLE IF EXISTS classrooms CASCADE;
-    DROP TABLE IF EXISTS cbc_topics CASCADE;
-    DROP TABLE IF EXISTS users CASCADE;
-    DROP TABLE IF EXISTS role_permissions CASCADE;
-    DROP TABLE IF EXISTS cbc_subjects CASCADE;
-    DROP TABLE IF EXISTS subscription_plans CASCADE;
-    DROP TABLE IF EXISTS schools CASCADE;
-    DROP TABLE IF EXISTS roles CASCADE;
-    DROP TABLE IF EXISTS permissions CASCADE;
-    DROP TABLE IF EXISTS content_tags CASCADE;
-    DROP TABLE IF EXISTS cbc_grades CASCADE;
-    """))
+    op.execute(text("DROP TABLE IF EXISTS resource_tag_associations CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS resource_reviews CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS download_logs CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS assignment_submissions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS classroom_enrollments CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS class_assignments CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS cbc_resources CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS cbc_learning_outcomes CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS academic_resources CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS user_subscriptions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS user_sessions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS profiles CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS premium_subscriptions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS payment_transactions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS notification_preferences CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS notification_logs CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS classrooms CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS cbc_topics CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS users CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS role_permissions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS cbc_subjects CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS subscription_plans CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS schools CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS roles CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS permissions CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS content_tags CASCADE;"))
+    op.execute(text("DROP TABLE IF EXISTS cbc_grades CASCADE;"))

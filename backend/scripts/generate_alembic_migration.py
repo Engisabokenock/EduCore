@@ -55,10 +55,13 @@ def compile_ddl(dialect_name: str = "postgresql"):
 
 def write_migration():
     revision = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    upgrade_sql = "\n    ".join(compile_ddl())
-    downgrade_sql = "\n    ".join(
+    upgrade_stmts = compile_ddl()
+    downgrade_stmts = [
         f"DROP TABLE IF EXISTS {table.name} CASCADE;" for table in reversed(Base.metadata.sorted_tables)
-    )
+    ]
+
+    upgrade_body = "\n".join(f'    op.execute(text("{stmt}"))' for stmt in upgrade_stmts)
+    downgrade_body = "\n".join(f'    op.execute(text("{stmt}"))' for stmt in downgrade_stmts)
 
     content = f'''"""Initial schema snapshot
 
@@ -79,15 +82,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(text("""
-    {upgrade_sql}
-    """))
+{upgrade_body}
 
 
 def downgrade() -> None:
-    op.execute(text("""
-    {downgrade_sql}
-    """))
+{downgrade_body}
 '''
     versions_dir = os.path.join(os.path.dirname(__file__), "..", "alembic", "versions")
     os.makedirs(versions_dir, exist_ok=True)
