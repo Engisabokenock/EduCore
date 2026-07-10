@@ -1,6 +1,7 @@
 """Application lifespan events."""
 import logging
 from sqlalchemy import text
+from app.core.database import Base, engine, AsyncSession
 from app.models import cbc
 
 logger = logging.getLogger("educore.lifespan")
@@ -76,14 +77,16 @@ async def _seed_cbc_if_empty():
             await session.flush()
 
             for subj in entry["subjects"]:
-                topic_datas = subj.pop("topics", [])
-                subject = SubjectModel(grade_id=grade.id, **subj)
+                topic_datas = list(subj.get("topics", []))
+                subject_data = {k: v for k, v in subj.items() if k != "topics"}
+                subject = SubjectModel(grade_id=grade.id, **subject_data)
                 session.add(subject)
                 await session.flush()
 
                 for idx, topic in enumerate(topic_datas):
-                    outcomes = topic.pop("outcomes", [])
-                    t = TopicModel(subject_id=subject.id, ordering=idx + 1, **topic)
+                    outcomes = list(topic.get("outcomes", []))
+                    topic_data = {k: v for k, v in topic.items() if k != "outcomes"}
+                    t = TopicModel(subject_id=subject.id, ordering=idx + 1, **topic_data)
                     session.add(t)
                     await session.flush()
                     for outcome_text in outcomes:
