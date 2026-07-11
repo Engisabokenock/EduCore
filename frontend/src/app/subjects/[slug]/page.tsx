@@ -30,7 +30,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function SubjectPage({ params }: Props) {
-  const subject = await serverApi.getSubject(params.slug);
+  let subject = await serverApi.getSubject(params.slug);
+  if (!subject) {
+    const fallback = {
+      mathematics: {
+        name: "Mathematics",
+        description: "CBC Mathematics resources and revision notes.",
+        slug: "mathematics",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      english: {
+        name: "English",
+        description: "CBC English resources and revision notes.",
+        slug: "english",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+    }[params.slug];
+    if (fallback) {
+      subject = fallback as any;
+    }
+  }
   if (!subject) notFound();
 
   return (

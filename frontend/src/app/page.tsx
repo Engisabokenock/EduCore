@@ -51,6 +51,19 @@ const SUBJECTS: { name: string; icon: string; color: string; slug: string }[] = 
   { name: "Design", icon: "✏️", color: "bg-orange-50 text-orange-700 border-orange-100", slug: "design" },
 ];
 
+async function getPopularSubjects(): Promise<{ name: string; icon: string; color: string; slug: string }[]> {
+  const data = await serverApi.getSubjects();
+  if (Array.isArray(data) && data.length > 0) {
+    return data.slice(0, 8).map((subject) => ({
+      name: subject.name,
+      icon: "📚",
+      color: "bg-blue-50 text-blue-700 border-blue-100",
+      slug: subject.slug,
+    }));
+  }
+  return SUBJECTS;
+}
+
 const HOW_IT_WORKS = [
   { step: 1, title: "Select Grade", desc: "Choose from Grade 1 to Grade 7", icon: Award },
   { step: 2, title: "Choose Subject", desc: "Browse CBC subjects and topics", icon: BookOpen },
@@ -200,8 +213,9 @@ function PlanCard({ plan }: { plan: Plan }) {
 }
 
 export default async function HomePage() {
-  const [grades, resources, plans] = await Promise.all([
+  const [grades, popularSubjects, resources, plans] = await Promise.all([
     getGrades(),
+    getPopularSubjects(),
     getFeaturedResources(),
     getPlans(),
   ]);
@@ -392,7 +406,9 @@ export default async function HomePage() {
             <p className="mt-2 text-sm text-gray-500">Cover every area of the CBC curriculum</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
-            {SUBJECTS.map((s) => <SubjectCard key={s.slug} subject={s} />)}
+            {popularSubjects.map((s) => (
+              <SubjectCard key={s.slug} subject={s} />
+            ))}
           </div>
         </div>
       </section>
