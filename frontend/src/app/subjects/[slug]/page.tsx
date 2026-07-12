@@ -10,14 +10,29 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const subject = await serverApi.getSubject(params.slug);
-  if (!subject) return { title: "Subject Not Found" };
+  const fallback = {
+    mathematics: { name: "Mathematics", description: "CBC Mathematics resources and revision notes." },
+    english: { name: "English", description: "CBC English resources and revision notes." },
+  }[params.slug];
+
+  const name = subject?.name ?? fallback?.name ?? "Subject";
+  const description = subject?.description ?? fallback?.description ?? "Browse CBC curriculum resources.";
+
+  if (!subject) {
+    return {
+      title: `${name} — EduCore`,
+      description,
+      openGraph: { title: `${name} | EduCore`, description, url: `/subjects/${params.slug}`, type: "website" },
+      twitter: { card: "summary_large_image", title: `${name} | EduCore`, description },
+      alternates: { canonical: `/subjects/${params.slug}` },
+    };
+  }
 
   const title = `${subject.name} — CBC notes, past papers & worksheets`;
-  const description = subject.description || `Browse ${subject.name} notes, past papers, worksheets, and revision materials — CBC curriculum Kenya.`;
 
   return {
     title,
-    description,
+    description: subject.description || `Browse ${subject.name} notes, past papers, worksheets, and revision materials — CBC curriculum Kenya.`,
     openGraph: {
       title: `${title} | EduCore`,
       description,
@@ -44,6 +59,48 @@ export default async function SubjectPage({ params }: Props) {
         name: "English",
         description: "CBC English resources and revision notes.",
         slug: "english",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      kiswahili: {
+        name: "Kiswahili",
+        description: "CBC Kiswahili resources and revision notes.",
+        slug: "kiswahili",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      science: {
+        name: "Science",
+        description: "CBC Science resources and revision notes.",
+        slug: "science",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      "social-studies": {
+        name: "Social Studies",
+        description: "CBC Social Studies resources and revision notes.",
+        slug: "social-studies",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      "cre-ire": {
+        name: "CRE / IRE",
+        description: "CBC Religious Education resources and revision notes.",
+        slug: "cre-ire",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      "creative-arts": {
+        name: "Creative Arts",
+        description: "CBC Creative Arts resources and revision notes.",
+        slug: "creative-arts",
+        topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
+        grade: { slug: "grade-1", name: "Grade 1" },
+      },
+      design: {
+        name: "Design",
+        description: "CBC Design resources and revision notes.",
+        slug: "design",
         topics: [{ id: "general", name: "General", slug: "general", resource_count: 0 }],
         grade: { slug: "grade-1", name: "Grade 1" },
       },
