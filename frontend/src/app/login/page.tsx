@@ -9,6 +9,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { BookOpen, Loader2 } from "lucide-react";
 import { authService } from "@/services/api-service";
+import { getApiErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 
 const schema = z.object({
@@ -17,6 +18,12 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+/** Only allow same-site relative redirects (prevents open-redirect phishing). */
+function safeRedirect(target: string | null, role: string): string {
+  if (target && target.startsWith("/") && !target.startsWith("//")) return target;
+  return ["admin", "super_admin"].includes(role) ? "/admin" : "/dashboard";
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,12 +42,9 @@ export default function LoginPage() {
       const res = await authService.login(data.email, data.password);
       login(res.data.tokens, res.data.user);
       toast.success("Welcome back!");
-      router.push("/dashboard");
+      router.push(safeRedirect(new URLSearchParams(window.location.search).get("redirect"), res.data.user.role));
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Invalid email or password.";
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, "Invalid email or password."));
     } finally {
       setLoading(false);
     }

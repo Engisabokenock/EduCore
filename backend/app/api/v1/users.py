@@ -1,87 +1,68 @@
-import secrets
-from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+
+from app.api.deps import auth_rate_limiter, get_current_user
 from app.core.database import get_db
-from app.core.security import hash_password, verify_password
-from app.core.exceptions import AppBaseException, AuthenticationError
-from app.core.email import AsyncEmailEngine
-from app.models.base import User, Profile
-from app.api.deps import get_current_user
+from app.models.base import User
 from app.schemas.users import (
-    ForgotPasswordRequest, ResetPasswordRequest, ProfileUpdateRequest,
-    ChangePasswordRequest, UserAccountSchema
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ProfileUpdateRequest,
+    ResetPasswordRequest,
+    UserAccountSchema,
 )
+from app.services import user_service
 
 router = APIRouter(prefix="/users", tags=["Self-Service & Profile Management Engine"])
 
-@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(auth_rate_limiter)])
 async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(User).where(User.email == payload.email))
-    user = res.scalar_one_or_none()
-    if user:
-        token = secrets.token_urlsafe(32)
-        user.reset_token = token
-        user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
-        db.add(user)
-        await AsyncEmailEngine.send_password_reset_email(user.email, token)
+    await user_service.request_password_reset(db, payload.email)
+    return {"message": "If an account exists for that e-mail, a reset link has been sent."}
 
-@router.post("/reset-password", status_code=status.HTTP_200_OK)
+
+@router.post("/reset-password", dependencies=[Depends(auth_rate_limiter)])
 async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(
-        select(User).where(
-            User.reset_token == payload.token,
-            User.reset_token_expires > datetime.now(timezone.utc)
-        )
-    )
-    user = res.scalar_one_or_none()
-    if not user:
-        raise AppBaseException("Reset token is invalid or has expired", status.HTTP_400_BAD_REQUEST)
+    await user_service.reset_password(db, payload.token, payload.new_password)
+    return {"message": "Your password has been reset. Please log in."}
 
-    user.hashed_password = hash_password(payload.new_password)
-    user.reset_token = None
-    user.reset_token_expires = None
-    db.add(user)
 
-@router.get("/verify-email", status_code=status.HTTP_200_OK)
+@router.get("/verify-email")
 async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(User).where(User.verification_token == token))
-    user = res.scalar_one_or_none()
-    if not user:
-        raise AppBaseException("Invalid email verification token supplied", status.HTTP_400_BAD_REQUEST)
+    await user_service.verify_email(db, token)
+    return {"message": "Your e-mail address has been verified."}
 
-    user.is_verified = True
-    user.verification_token = None
-    db.add(user)
 
 @router.get("/me", response_model=UserAccountSchema)
 async def get_my_account(current_user: User = Depends(get_current_user)):
-    return current_user
+    return user_service.serialize_user(current_user)
+
 
 @router.patch("/me/profile", response_model=UserAccountSchema)
-async def update_profile(payload: ProfileUpdateRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     profile = current_user.profile
-    if payload.full_name is not None:
-        profile.full_name = payload.full_name
-    if payload.phone_number is not None:
-        profile.phone_number = payload.phone_number
-    if payload.avatar_url is not None:
-        profile.avatar_url = payload.avatar_url
-
-    db.add(profile)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(profile, field, value)
     await db.flush()
-    return current_user
+    return user_service.serialize_user(current_user)
+
 
 @router.post("/me/change-password", status_code=status.HTTP_204_NO_CONTENT)
-async def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not verify_password(payload.current_password, current_user.hashed_password):
-        raise AuthenticationError("Current password validation signature failed")
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password and sign out every other session."""
+    await user_service.change_password(db, current_user, payload.current_password, payload.new_password)
 
-    current_user.hashed_password = hash_password(payload.new_password)
-    db.add(current_user)
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    # Perform a cascade delete of the authenticated user
-    await db.delete(current_user)
+    """Deactivate and anonymise the caller's account (financial records are retained)."""
+    await user_service.deactivate_account(db, current_user)

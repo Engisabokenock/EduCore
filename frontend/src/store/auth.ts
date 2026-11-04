@@ -1,9 +1,9 @@
 /**
- * Auth store — JWT tokens and current user, persisted via cookies.
+ * Auth store — current user plus JWT tokens persisted in cookies.
  */
 import { create } from "zustand";
-import Cookies from "js-cookie";
 import api from "@/lib/api";
+import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "@/lib/auth-cookies";
 import type { User, AuthTokens } from "@/types";
 
 interface AuthState {
@@ -15,29 +15,33 @@ interface AuthState {
   fetchMe: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: false,
-  isAuthenticated: !!Cookies.get("access_token"),
+  // Cookies can include a refresh token only (access expired) — still a live session.
+  isAuthenticated: typeof window !== "undefined" && !!(getAccessToken() || getRefreshToken()),
 
   login(tokens, user) {
-    Cookies.set("access_token", tokens.access, { secure: true, sameSite: "lax", expires: 1 / 24 });
-    Cookies.set("refresh_token", tokens.refresh, { secure: true, sameSite: "lax", expires: 7 });
+    setAuthCookies(tokens);
     set({ user, isAuthenticated: true });
   },
 
   async logout() {
     try {
-      const refresh = Cookies.get("refresh_token");
+      const refresh = getRefreshToken();
       if (refresh) await api.post("/auth/logout/", { refresh });
-    } catch {}
-    Cookies.remove("access_token");
-    Cookies.remove("refresh_token");
+    } catch {
+      // Logging out locally must succeed even if the API is unreachable.
+    }
+    clearAuthCookies();
     set({ user: null, isAuthenticated: false });
   },
 
   async fetchMe() {
-    if (!Cookies.get("access_token")) return;
+    if (!getAccessToken() && !getRefreshToken()) {
+      set({ user: null, isAuthenticated: false });
+      return;
+    }
     set({ isLoading: true });
     try {
       const { data } = await api.get<User>("/auth/me/");

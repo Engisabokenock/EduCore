@@ -1,11 +1,11 @@
 import hashlib
 import json
-from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, or_, func, desc
+from sqlalchemy.orm import raiseload, selectinload
 from app.core.database import get_db
 from app.core.cache import CacheManager
 from app.models.resource import AcademicResource
@@ -41,18 +41,10 @@ async def execute_advanced_curriculum_search(
     if cached_response is not None:
         return cached_response
 
-    now = datetime.now(timezone.utc)
-
-    # Strict compliance lifecycle filtering criteria. Excludes all unreleased or archived assets.
+    # Only published, non-archived resources are searchable.
     base_conditions = [
-        AcademicResource.is_archived == False,
-        or_(
-            AcademicResource.is_published == True,
-            and_(
-                AcademicResource.scheduled_publish_at != None,
-                AcademicResource.scheduled_publish_at <= now
-            )
-        )
+        AcademicResource.is_archived.is_(False),
+        AcademicResource.is_published.is_(True),
     ]
 
     # Dynamically inject filtration elements depending on user criteria payload mapping
@@ -78,11 +70,11 @@ async def execute_advanced_curriculum_search(
         base_conditions.append(AcademicResource.term == payload.term)
 
     if payload.keyword:
-        sanitized_keyword = f"%{payload.keyword.strip().lower()}%"
+        term = payload.keyword.strip().lower()
         base_conditions.append(
             or_(
-                func.lower(AcademicResource.title).like(sanitized_keyword),
-                func.lower(AcademicResource.description).like(sanitized_keyword)
+                func.lower(AcademicResource.title).contains(term, autoescape=True),
+                func.lower(AcademicResource.description).contains(term, autoescape=True),
             )
         )
 
@@ -92,7 +84,10 @@ async def execute_advanced_curriculum_search(
     total_matched_records: int = count_execution_context.scalar() or 0
 
     # 2. Base Resource Query Segment Thread Allocation Construction
-    selection_statement = select(AcademicResource).where(and_(*base_conditions))
+    selection_statement = select(AcademicResource).where(and_(*base_conditions)).options(
+        selectinload(AcademicResource.grade), selectinload(AcademicResource.subject),
+        selectinload(AcademicResource.topic), selectinload(AcademicResource.tags),
+    )
 
     # 3. Dynamic Structural Sorting Algorithm Routing Logic Matrix Mapping Execution
     if payload.sort_by == SearchSortOrder.NEWEST:
@@ -146,7 +141,7 @@ async def execute_advanced_curriculum_search(
 async def public_search(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    q: str = Query("", min_length=1),
+    q: str = Query(..., min_length=1, max_length=100),
     category: Optional[str] = Query(None),
 ):
     """
@@ -166,8 +161,11 @@ async def public_search(
       "topics": TopicOut[]
     }
     """
-    keyword = f"%{q.strip().lower()}%"
+    term = q.strip().lower()
     category = (category or "").strip().lower()
+
+    def matches(column):
+        return func.lower(column).contains(term, autoescape=True)
 
     results: dict = {
         "query": q.strip(),
@@ -185,15 +183,13 @@ async def public_search(
                 selectinload(AcademicResource.grade),
                 selectinload(AcademicResource.subject),
                 selectinload(AcademicResource.topic),
+                selectinload(AcademicResource.tags),
             )
             .where(
                 and_(
-                    AcademicResource.is_archived == False,
-                    AcademicResource.is_published == True,
-                    or_(
-                        func.lower(AcademicResource.title).like(keyword),
-                        func.lower(AcademicResource.description).like(keyword),
-                    ),
+                    AcademicResource.is_archived.is_(False),
+                    AcademicResource.is_published.is_(True),
+                    or_(matches(AcademicResource.title), matches(AcademicResource.description)),
                 )
             )
             .order_by(desc(AcademicResource.downloads_count))
@@ -205,8 +201,9 @@ async def public_search(
     if category in ("", "all", "grades"):
         grade_stmt = (
             select(Grade)
-            .where(func.lower(Grade.name).like(keyword))
-            .order_by(Grade.name)
+            .options(raiseload(Grade.subjects))
+            .where(matches(Grade.name), Grade.is_active.is_(True))
+            .order_by(Grade.order)
             .limit(10)
         )
         grades = (await db.execute(grade_stmt)).scalars().all()
@@ -215,8 +212,8 @@ async def public_search(
     if category in ("", "all", "subjects"):
         subject_stmt = (
             select(Subject)
-            .options(selectinload(Subject.grade))
-            .where(func.lower(Subject.name).like(keyword))
+            .options(selectinload(Subject.grade).raiseload(Grade.subjects), raiseload(Subject.topics))
+            .where(matches(Subject.name), Subject.is_active.is_(True))
             .order_by(Subject.name)
             .limit(10)
         )
@@ -226,8 +223,7 @@ async def public_search(
     if category in ("", "all", "topics"):
         topic_stmt = (
             select(Topic)
-            .options(selectinload(Topic.subject))
-            .where(func.lower(Topic.name).like(keyword))
+            .where(matches(Topic.name), Topic.is_active.is_(True))
             .order_by(Topic.name)
             .limit(10)
         )

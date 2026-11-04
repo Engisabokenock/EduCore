@@ -3,13 +3,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import and_, desc, func
+from sqlalchemy import and_, desc, func, update
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException
 from app.api.deps import get_current_user
 from app.models.base import User
 from app.models.notification import NotificationPreference, NotificationLog
-from app.schemas.notification import UpdatePreferencesRequest, PreferenceResponse, NotificationLogResponse
+from app.schemas.notification import PreferenceResponse, NotificationLogResponse
 
 router = APIRouter(prefix="/notifications", tags=["Notification Ledger & Preference Matrices"])
 
@@ -27,14 +27,16 @@ async def fetch_my_notification_preferences(
 @router.get("", response_model=list[NotificationLogResponse])
 async def list_my_notifications(
     current_user: User = Depends(get_current_user),
+    unread: bool = Query(False),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db)
 ):
     """List notifications for the authenticated user."""
-    stmt = select(NotificationLog).where(
-        NotificationLog.user_id == current_user.id
-    ).order_by(desc(NotificationLog.sent_at)).limit(limit).offset(offset)
+    stmt = select(NotificationLog).where(NotificationLog.user_id == current_user.id)
+    if unread:
+        stmt = stmt.where(NotificationLog.is_read.is_(False))
+    stmt = stmt.order_by(desc(NotificationLog.sent_at)).limit(limit).offset(offset)
     res = await db.execute(stmt)
     return res.scalars().all()
 
@@ -81,17 +83,9 @@ async def mark_all_notifications_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(NotificationLog).where(
-        and_(
-            NotificationLog.user_id == current_user.id,
-            NotificationLog.is_read == False,
-        )
+    await db.execute(
+        update(NotificationLog)
+        .where(NotificationLog.user_id == current_user.id, NotificationLog.is_read.is_(False))
+        .values(is_read=True, read_at=datetime.now(timezone.utc))
     )
-    notifications = (await db.execute(stmt)).scalars().all()
-    now = datetime.now(timezone.utc)
-    for notification in notifications:
-        notification.is_read = True
-        notification.read_at = now
-        db.add(notification)
-    await db.flush()
 

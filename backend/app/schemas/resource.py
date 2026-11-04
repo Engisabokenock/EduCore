@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, HttpUrl
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 from uuid import UUID
 from datetime import datetime
 from typing import Optional
@@ -7,7 +7,7 @@ from app.models.resource import ResourceTypeVariant, AcademicTerm
 class ResourceCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=255)
     description: Optional[str] = None
-    slug: str = Field(..., min_length=3, max_length=255)
+    slug: Optional[str] = Field(None, min_length=3, max_length=255, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     grade_id: UUID
     subject_id: UUID
     topic_id: Optional[UUID] = None
@@ -18,7 +18,7 @@ class ResourceCreate(BaseModel):
     type_variant: ResourceTypeVariant
     is_premium: bool = False
     scheduled_publish_at: Optional[datetime] = None
-    tags: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list, max_length=20)
 
 class ResourceUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=255)
@@ -58,6 +58,12 @@ class TopicInfo(BaseModel):
     slug: str
 
 class ResourceOut(BaseModel):
+    """
+    Public resource representation.
+
+    The storage URL (``pdf_url``) is deliberately NOT exposed: premium files must only
+    be reachable through the entitlement-checked download endpoint.
+    """
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: UUID
     title: str
@@ -68,7 +74,6 @@ class ResourceOut(BaseModel):
     topic_id: Optional[UUID]
     term: AcademicTerm
     year: int
-    pdf_url: str
     thumbnail_url: Optional[str]
     type_variant: ResourceTypeVariant
     is_premium: bool
@@ -78,32 +83,44 @@ class ResourceOut(BaseModel):
     published_at: Optional[datetime] = None
     views_count: int
     downloads_count: int
-    created_by_id: UUID
     created_at: datetime
     grade: Optional[GradeInfo] = None
     subject: Optional[SubjectInfo] = None
     topic: Optional[TopicInfo] = None
-    tags: list[TagOut]
+    tags: list[str] = Field(default_factory=list)
+    can_access: Optional[bool] = None
 
-    @property
-    def view_count(self) -> int:
-        return self.views_count
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tag_names(cls, value):
+        return [t if isinstance(t, str) else getattr(t, "name", str(t)) for t in (value or [])]
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def download_count(self) -> int:
-        return self.downloads_count
-
-    @property
-    def file(self) -> str:
-        return self.pdf_url
-
-    @property
-    def file_type(self) -> str:
+    def resource_type(self) -> str:
         return self.type_variant.value
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def thumbnail(self) -> Optional[str]:
+        return self.thumbnail_url
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def file_type(self) -> str:
+        return "pdf"
+
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def file_size(self) -> int:
         return 0
+
+
+class ResourceStaffOut(ResourceOut):
+    """Staff-only view that includes the stored file location and author."""
+    pdf_url: str
+    created_by_id: UUID
+
 
 class PaginatedResourceResponse(BaseModel):
     count: int

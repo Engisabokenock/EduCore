@@ -225,11 +225,7 @@ export default async function ResourceDetailPage({ params }: Props) {
 
             {/* Download CTA */}
             <div className="p-6 sm:p-8">
-              <DownloadButton
-                slug={params.slug}
-                isPremium={resource.is_premium}
-                canAccess={resource.can_access ?? !resource.is_premium}
-              />
+              <DownloadButton slug={params.slug} isPremium={resource.is_premium} />
             </div>
           </div>
         </main>

@@ -22,8 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           priority: 0.8,
         });
 
-        const allSubjects = await serverApi.getSubjects();
-        const subjects = allSubjects?.filter((subject) => subject.grade?.slug === grade.slug) ?? [];
+        const subjects = (await serverApi.getSubjects(grade.slug)) ?? [];
         if (subjects) {
           for (const subject of subjects) {
             urls.push({
@@ -33,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
               priority: 0.7,
             });
 
-            const topics = await serverApi.getTopics(subject.slug);
+            const topics = await serverApi.getTopics(subject.slug, grade.slug);
             if (topics) {
               for (const topic of topics) {
                 urls.push({

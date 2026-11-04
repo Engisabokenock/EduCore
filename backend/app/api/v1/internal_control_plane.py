@@ -1,19 +1,15 @@
 import uuid
-from datetime import datetime, timezone
-from typing import List, Optional
-from fastapi import APIRouter, Depends, status, Query, UploadFile, File
+from typing import List
+from fastapi import APIRouter, Depends, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import and_
 from app.core.database import get_db
 from app.core.exceptions import AuthorizationError, AppBaseException
-from app.core.security import validate_uploaded_file
+from app.core.security import safe_filename, validate_uploaded_file
 from app.api.deps import get_current_active_user, PermissionGuard
 from app.models.base import User, UserRole, DynamicPermission
-from app.models.asset import PortalResource, ExtendedResourceType, WorkflowApprovalState
+from app.models.asset import PortalResource, WorkflowApprovalState
 from app.models.notification import NotificationLog
-from app.models.subscription import UserSubscription, SubscriptionState
-from app.models.payment import PaymentTransaction, TransactionStatus
 from app.schemas.asset import ResourceUploadPayload, UnifiedResourceOut, ResourceModerationAction
 from app.storage.r2 import StorageProvider
 
@@ -40,7 +36,7 @@ async def internal_staff_upload_binary(
     await validate_uploaded_file(file)
     bytes_data = await file.read()
 
-    filename = file.filename or "upload.bin"
+    filename = safe_filename(file.filename, "upload.bin")
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
 
     mime_map = {
@@ -147,6 +143,8 @@ async def moderate_incoming_resource(
     if not asset:
         raise AppBaseException("Target curriculum resource missing", 404)
 
+    if payload.target_state in (WorkflowApprovalState.DRAFT, WorkflowApprovalState.PENDING_REVIEW):
+        raise AppBaseException("Moderation can only approve, reject or publish an asset.", 400)
     asset.approval_state = payload.target_state
     db.add(asset)
     await db.flush()

@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List
-from sqlalchemy import String, DateTime, Enum as SQLEnum, Boolean, ForeignKey, Table, Column
+from sqlalchemy import String, DateTime, Boolean, ForeignKey, Table, Column
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 # Immutable Many-to-Many Association Ledger tracking Permission Matrix Allocations
 role_permissions = Table(
@@ -53,7 +53,7 @@ class Permission(Base):
     __tablename__ = "permissions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    name: Mapped[DynamicPermission] = mapped_column(SQLEnum(DynamicPermission), unique=True, index=True, nullable=False)
+    name: Mapped[DynamicPermission] = mapped_column(pg_enum(DynamicPermission), unique=True, index=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
 class Role(Base):
@@ -78,6 +78,14 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+    # Account lifecycle. Tokens are stored as SHA-256 digests, never in plain text,
+    # so a database leak cannot be replayed into account takeovers.
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    verification_token: Mapped[Optional[str]] = mapped_column(String(128), index=True, nullable=True)
+    reset_token: Mapped[Optional[str]] = mapped_column(String(128), index=True, nullable=True)
+    reset_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     role: Mapped[Role] = relationship(lazy="selectin")
     profile: Mapped["Profile"] = relationship(back_populates="user", lazy="selectin")
@@ -89,8 +97,8 @@ class Profile(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    avatar_url: Mapped[str] = mapped_column(String(512), nullable=True)
-    phone_number: Mapped[str] = mapped_column(String(30), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    phone_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     metadata_fields: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="profile")
@@ -102,8 +110,8 @@ class UserSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     refresh_token: Mapped[str] = mapped_column(String(512), unique=True, index=True, nullable=False)
-    user_agent: Mapped[str] = mapped_column(String(255), nullable=True)
-    ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

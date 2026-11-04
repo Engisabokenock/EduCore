@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Text, Index, Enum as SQLEnum
+from sqlalchemy import String, ForeignKey, DateTime, Integer, Boolean, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 class ReviewModerationStatus(str, Enum):
     PENDING = "pending"
@@ -24,7 +24,7 @@ class ResourceReview(Base):
 
     # Moderation Infrastructure Parameters
     moderation_status: Mapped[ReviewModerationStatus] = mapped_column(
-        SQLEnum(ReviewModerationStatus), default=ReviewModerationStatus.PENDING, nullable=False, index=True
+        pg_enum(ReviewModerationStatus), default=ReviewModerationStatus.PENDING, nullable=False, index=True
     )
     is_reported: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     report_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

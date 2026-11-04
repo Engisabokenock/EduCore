@@ -1,137 +1,173 @@
+import logging
 import time
+from typing import Iterable, Optional
+
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+
+from app.core.cache import get_redis_client
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.exceptions import AppBaseException, AuthenticationError, AuthorizationError
+from app.core.network import get_client_ip
 from app.core.security import verify_jwt_token
-from app.core.exceptions import AuthenticationError, AuthorizationError, AppBaseException
-from app.models.base import User, UserRole, DynamicPermission
+from app.models.base import DynamicPermission, User, UserRole
+
+logger = logging.getLogger("educore.deps")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
-async def get_current_active_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
-) -> User:
-    """Decrypts context strings and secures persistent user entity identities from data containers."""
+STAFF_ROLES = (UserRole.SUPER_ADMIN, UserRole.ADMIN)
+
+
+# ── Authentication ───────────────────────────────────────────────────────────
+
+async def _load_active_user(token: str, db: AsyncSession) -> User:
     payload = verify_jwt_token(token, is_refresh=False)
-    user_id = payload.get("sub")
-
-    query = select(User).where(User.id == user_id)
-    execution_context = await db.execute(query)
-    user = execution_context.scalar_one_or_none()
-
+    user = (await db.execute(select(User).where(User.id == payload["sub"]))).scalar_one_or_none()
     if not user:
-        raise AuthenticationError("Active user session context dropped or profile matching identifier missing")
+        raise AuthenticationError("Your account could not be found. Please log in again.")
     if not user.is_active:
-        raise AuthorizationError("Access denied: Your operational account identity profile status is frozen")
-
+        raise AuthorizationError("Your account has been deactivated. Contact support for help.")
     return user
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
-) -> User:
-    payload = verify_jwt_token(token, is_refresh=False)
-    user_id = payload.get("sub")
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
+    return await _load_active_user(token, db)
 
-    if not user or not user.is_active:
-        raise AuthenticationError("User resource either deactivated or missing")
-    return user
+
+# Backwards-compatible alias used by several routers.
+get_current_active_user = get_current_user
+
+
+async def get_optional_user(
+    token: Optional[str] = Depends(optional_oauth2_scheme), db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    """
+    Resolve the user when a valid bearer token is present, otherwise None.
+
+    Used by public endpoints (free downloads, resource access checks) that behave
+    differently for signed-in users but must still work anonymously.
+    """
+    if not token:
+        return None
+    try:
+        return await _load_active_user(token, db)
+    except (AuthenticationError, AuthorizationError):
+        return None
+
+
+def role_of(user: Optional[User]) -> Optional[str]:
+    if user is None or user.role is None:
+        return None
+    return str(user.role.name.value if isinstance(user.role.name, UserRole) else user.role.name)
+
+
+def has_role(user: Optional[User], roles: Iterable[UserRole]) -> bool:
+    current = role_of(user)
+    return current is not None and current in {r.value for r in roles}
+
+
+def is_staff(user: Optional[User]) -> bool:
+    return has_role(user, STAFF_ROLES)
+
+
+# ── Authorization ────────────────────────────────────────────────────────────
 
 class RoleChecker:
-    """RBAC dynamic assertion check structural enforcement."""
+    """
+    Role-based guard. SUPER_ADMIN is the platform owner and always passes, so it is
+    never accidentally locked out of an ADMIN-only route.
+    """
+
     def __init__(self, allowed_roles: list[UserRole]):
-        self.allowed_roles = allowed_roles
+        self.allowed_roles = set(allowed_roles) | {UserRole.SUPER_ADMIN}
 
     def __call__(self, current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role.name not in self.allowed_roles:
-            raise AuthorizationError("Your access layer profiles block entry to this routing path")
-        return current_user
-
-
-class PermissionChecker:
-    """Granular Capability-Based Access Control Validation Core."""
-    def __init__(self, required_permission: str | DynamicPermission):
-        self.required_permission = required_permission
-
-    def __call__(self, current_user: User = Depends(get_current_user)) -> User:
-        user_permissions = {p.name for p in current_user.role.permissions}
-        required = self.required_permission
-        if isinstance(required, str):
-            try:
-                required = DynamicPermission(required)
-            except ValueError:
-                pass
-        if required not in user_permissions:
-            raise AuthorizationError(f"Required privilege constraint missing: {self.required_permission}")
+        if not has_role(current_user, self.allowed_roles):
+            raise AuthorizationError()
         return current_user
 
 
 class PermissionGuard:
     """
-    Production-grade Granular RBAC Verification Layer.
-
-    Advanced Role Hierarchy enforcement:
-    - SUPER_ADMIN bypasses all permission checks (absolute privilege)
-    - All other roles must have the specific DynamicPermission assigned
-    - Uses get_current_active_user to ensure only active users are evaluated
+    Capability-based guard. SUPER_ADMIN bypasses all checks; every other role must
+    hold the specific DynamicPermission through its role assignment.
     """
+
     def __init__(self, required_permission: DynamicPermission):
         self.required_permission = required_permission
 
-    def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
-        if current_user.role.name == UserRole.SUPER_ADMIN:
+    def __call__(self, current_user: User = Depends(get_current_user)) -> User:
+        if has_role(current_user, [UserRole.SUPER_ADMIN]):
             return current_user
-
-        assigned_permissions = {p.name for p in current_user.role.permissions}
-        if self.required_permission not in assigned_permissions:
+        assigned = {p.name for p in (current_user.role.permissions if current_user.role else [])}
+        if self.required_permission not in assigned:
             raise AuthorizationError(
-                f"Security compliance violation: Account requires privilege level token key '{self.required_permission.value}'"
+                f"This action requires the '{self.required_permission.value}' permission."
             )
-
         return current_user
 
-# Simple, high-performance in-memory dictionary for sliding-window rate limiting.
-# For distributed multi-node production setups, swap this out for an atomic Redis token bucket.
-RATE_LIMIT_STORAGE: dict[str, list[float]] = {}
-LIMIT_WINDOW_SECONDS = 60
-MAX_REQUESTS_PER_WINDOW = 60  # 60 requests per minute configuration threshold
+
+# Kept for compatibility with existing imports.
+PermissionChecker = PermissionGuard
+
+
+# ── Rate limiting ────────────────────────────────────────────────────────────
+
+_LOCAL_BUCKETS: dict[str, tuple[int, int]] = {}
+_LOCAL_MAX_KEYS = 50_000
+_WINDOW_SECONDS = 60
+
+
+async def _hit(bucket: str, limit: int) -> None:
+    """
+    Fixed-window counter keyed per client and minute. Uses Redis (shared across all
+    API instances) and falls back to process memory if Redis is unavailable.
+    """
+    window = int(time.time() // _WINDOW_SECONDS)
+    key = f"rl:{bucket}:{window}"
+
+    client = get_redis_client()
+    if client is not None:
+        try:
+            async with client:
+                pipe = client.pipeline()
+                pipe.incr(key)
+                pipe.expire(key, _WINDOW_SECONDS + 5)
+                count, _ = await pipe.execute()
+            if count > limit:
+                raise AppBaseException("Too many requests. Please slow down and try again shortly.", 429)
+            return
+        except AppBaseException:
+            raise
+        except Exception as exc:
+            logger.debug("Redis rate limiter unavailable, using local fallback: %s", exc)
+
+    if len(_LOCAL_BUCKETS) > _LOCAL_MAX_KEYS:
+        stale = [k for k, (w, _) in _LOCAL_BUCKETS.items() if w != window]
+        for k in stale:
+            _LOCAL_BUCKETS.pop(k, None)
+    stored_window, count = _LOCAL_BUCKETS.get(bucket, (window, 0))
+    count = count + 1 if stored_window == window else 1
+    _LOCAL_BUCKETS[bucket] = (window, count)
+    if count > limit:
+        raise AppBaseException("Too many requests. Please slow down and try again shortly.", 429)
 
 
 async def sliding_window_rate_limiter(request: Request) -> None:
-    """
-    Protects API endpoints from Brute Force and Denial of Service (DoS) attacks.
+    """Global per-IP request budget applied to every API route."""
+    await _hit(f"global:{get_client_ip(request)}", settings.RATE_LIMIT_PER_MINUTE)
 
-    Implements a strict sliding-window rate limiter mapped against the client's IP signature.
-    """
-    client_ip = request.client.host if request.client else "0.0.0.0"
-    current_timestamp = time.time()
 
-    if client_ip not in RATE_LIMIT_STORAGE:
-        RATE_LIMIT_STORAGE[client_ip] = []
-
-    # Evict expired request timestamps outside the sliding window
-    RATE_LIMIT_STORAGE[client_ip] = [
-        ts for ts in RATE_LIMIT_STORAGE[client_ip]
-        if current_timestamp - ts < LIMIT_WINDOW_SECONDS
-    ]
-
-    # Free the bucket once it is empty to avoid unbounded memory growth
-    if not RATE_LIMIT_STORAGE[client_ip]:
-        RATE_LIMIT_STORAGE.pop(client_ip, None)
-
-    if client_ip in RATE_LIMIT_STORAGE and len(RATE_LIMIT_STORAGE[client_ip]) >= MAX_REQUESTS_PER_WINDOW:
-        raise AppBaseException("Too Many Requests: Rate limit exceeded for this time window", 429)
-
-    RATE_LIMIT_STORAGE.setdefault(client_ip, []).append(current_timestamp)
+async def auth_rate_limiter(request: Request) -> None:
+    """Tight budget for credential endpoints to blunt brute force and enumeration."""
+    await _hit(f"auth:{request.url.path}:{get_client_ip(request)}", settings.AUTH_RATE_LIMIT_PER_MINUTE)
 
 
 def generate_paginated_cache_key(endpoint: str, request: Request) -> str:
-    """Compiles an immutable unique cache signature tracking paginated query string vectors."""
     query_string = request.url.query
     return f"cache:page:{endpoint}:{query_string if query_string else 'default'}"

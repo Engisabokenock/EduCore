@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import String, ForeignKey, Text, Enum as SQLEnum, DateTime, Integer, Boolean, Table, Column
+from sqlalchemy import String, ForeignKey, Text, DateTime, Integer, Boolean, Table, Column, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 class ResourceTypeVariant(str, Enum):
     REVISION_PAPER = "revision_paper"
@@ -50,7 +50,7 @@ class AcademicResource(Base):
     topic_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("cbc_topics.id", ondelete="SET NULL"), nullable=True)
 
     # Temporal Parameters
-    term: Mapped[AcademicTerm] = mapped_column(SQLEnum(AcademicTerm), nullable=False)
+    term: Mapped[AcademicTerm] = mapped_column(pg_enum(AcademicTerm), nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     # Storage Pointers (Cloudflare R2 Integration Engine Targets)
@@ -58,7 +58,7 @@ class AcademicResource(Base):
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     # Classification & Access Vector Gates
-    type_variant: Mapped[ResourceTypeVariant] = mapped_column(SQLEnum(ResourceTypeVariant), nullable=False, index=True)
+    type_variant: Mapped[ResourceTypeVariant] = mapped_column(pg_enum(ResourceTypeVariant), nullable=False, index=True)
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -84,4 +84,9 @@ class AcademicResource(Base):
     subject: Mapped["Subject"] = relationship(lazy="selectin")
     topic: Mapped[Optional["Topic"]] = relationship(lazy="selectin")
     tags: Mapped[list[ContentTag]] = relationship(secondary=resource_tags, lazy="selectin")
+
+    __table_args__ = (
+        # Catalogue browsing always filters by the CBC hierarchy plus publish state.
+        Index("ix_academic_resources_catalog", "grade_id", "subject_id", "topic_id", "is_published"),
+    )
 

@@ -40,7 +40,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS cbc_grades OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  content_tags (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
@@ -48,7 +47,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS content_tags OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  permissions (
 	id UUID NOT NULL, 
 	name dynamicpermission NOT NULL, 
@@ -57,7 +55,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS permissions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  roles (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
@@ -65,7 +62,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS roles OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  schools (
 	id UUID NOT NULL, 
 	name VARCHAR(255) NOT NULL, 
@@ -77,7 +73,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS schools OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  subscription_plans (
 	id UUID NOT NULL, 
 	name VARCHAR(50) NOT NULL, 
@@ -94,7 +89,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS subscription_plans OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  cbc_subjects (
 	id UUID NOT NULL, 
 	grade_id UUID NOT NULL, 
@@ -111,7 +105,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS cbc_subjects OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  role_permissions (
 	role_id UUID NOT NULL, 
 	permission_id UUID NOT NULL, 
@@ -121,7 +114,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS role_permissions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  users (
 	id UUID NOT NULL, 
 	email VARCHAR(255) NOT NULL, 
@@ -134,7 +126,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS users OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  cbc_topics (
 	id UUID NOT NULL, 
 	subject_id UUID NOT NULL, 
@@ -147,7 +138,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS cbc_topics OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  classrooms (
 	id UUID NOT NULL, 
 	school_id UUID NOT NULL, 
@@ -162,7 +152,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS classrooms OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  notification_logs (
 	id UUID NOT NULL, 
 	user_id UUID, 
@@ -182,7 +171,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS notification_logs OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  notification_preferences (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -194,7 +182,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS notification_preferences OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  payment_transactions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -213,7 +200,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS payment_transactions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  premium_subscriptions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -227,7 +213,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS premium_subscriptions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  profiles (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -241,7 +226,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS profiles OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  user_sessions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -256,7 +240,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS user_sessions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  user_subscriptions (
 	id UUID NOT NULL, 
 	user_id UUID NOT NULL, 
@@ -275,7 +258,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS user_subscriptions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  academic_resources (
 	id UUID NOT NULL, 
 	title VARCHAR(255) NOT NULL, 
@@ -307,7 +289,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS academic_resources OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  cbc_learning_outcomes (
 	id UUID NOT NULL, 
 	topic_id UUID NOT NULL, 
@@ -318,7 +299,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS cbc_learning_outcomes OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  cbc_resources (
 	id UUID NOT NULL, 
 	topic_id UUID NOT NULL, 
@@ -331,7 +311,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS cbc_resources OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  class_assignments (
 	id UUID NOT NULL, 
 	classroom_id UUID NOT NULL, 
@@ -349,7 +328,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS class_assignments OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  classroom_enrollments (
 	id UUID NOT NULL, 
 	classroom_id UUID NOT NULL, 
@@ -361,7 +339,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS classroom_enrollments OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  assignment_submissions (
 	id UUID NOT NULL, 
 	assignment_id UUID NOT NULL, 
@@ -379,7 +356,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS assignment_submissions OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  download_logs (
 	id UUID NOT NULL, 
 	resource_id UUID NOT NULL, 
@@ -394,7 +370,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS download_logs OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  resource_reviews (
 	id UUID NOT NULL, 
 	resource_id UUID NOT NULL, 
@@ -415,7 +390,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS resource_reviews OWNER TO postgres;"""))
     op.execute(text("""CREATE TABLE IF NOT EXISTS  resource_tag_associations (
 	resource_id UUID NOT NULL, 
 	tag_id UUID NOT NULL, 
@@ -425,7 +399,6 @@ def upgrade() -> None:
 )
 
 """))
-    op.execute(text("""ALTER TABLE IF EXISTS resource_tag_associations OWNER TO postgres;"""))
 
 
 def downgrade() -> None:

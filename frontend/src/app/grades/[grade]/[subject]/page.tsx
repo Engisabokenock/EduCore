@@ -11,7 +11,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [grade, subject] = await Promise.all([
     serverApi.getGrade(params.grade),
-    serverApi.getSubject(params.subject),
+    serverApi.getSubject(params.subject, params.grade),
   ]);
   if (!grade || !subject) return { title: "Subject Not Found" };
 
@@ -34,8 +34,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SubjectPage({ params }: Props) {
   const [grade, subject, topics] = await Promise.all([
     serverApi.getGrade(params.grade),
-    serverApi.getSubject(params.subject),
-    serverApi.getTopics(params.subject),
+    serverApi.getSubject(params.subject, params.grade),
+    serverApi.getTopics(params.subject, params.grade),
   ]);
 
   if (!grade || !subject) notFound();

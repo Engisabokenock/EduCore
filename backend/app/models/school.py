@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Text, Index, Enum as SQLEnum
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 class AssignmentStatus(str, Enum):
     PENDING = "pending"
@@ -93,7 +93,7 @@ class AssignmentSubmission(Base):
     attachment_file_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True) # Cloudflare R2 Upload link
 
     # Grading Parameters
-    status: Mapped[AssignmentStatus] = mapped_column(SQLEnum(AssignmentStatus), default=AssignmentStatus.PENDING, nullable=False)
+    status: Mapped[AssignmentStatus] = mapped_column(pg_enum(AssignmentStatus), default=AssignmentStatus.PENDING, nullable=False)
     score_achieved: Mapped[Optional[float]] = mapped_column(nullable=True)
     teacher_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import type {
   User, AuthTokens, Grade, Subject, Topic,
   Resource, Plan, Subscription, PaginatedResponse,
+  ResourceAccess, CheckoutResponse, PaymentStatus, DownloadLink,
 } from "@/types";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ import type {
 export const authService = {
   register: (data: {
     email: string; first_name: string; last_name: string;
-    password: string; password_confirm: string; role?: string;
+    password: string; password_confirm: string; role?: string; phone?: string;
   }) => api.post<{ tokens: AuthTokens; user: User }>("/auth/register/", data),
 
   login: (email: string, password: string) =>
@@ -29,7 +30,7 @@ export const authService = {
   resetPassword: (token: string, new_password: string, new_password_confirm: string) =>
     api.post("/users/reset-password/", { token, new_password, new_password_confirm }),
 
-  verifyEmail: (token: string) => api.get(`/users/verify-email/?token=${token}`),
+  verifyEmail: (token: string) => api.get("/users/verify-email/", { params: { token } }),
 };
 
 // ── Academic ──────────────────────────────────────────────────────────────────
@@ -43,10 +44,11 @@ export const academicService = {
   getSubjects: () =>
     api.get<Subject[]>("/academic/subjects/"),
 
-  getSubject: (slug: string) => api.get<Subject>(`/academic/subjects/${slug}/`),
+  getSubject: (slug: string, grade?: string) =>
+    api.get<Subject>(`/academic/subjects/${slug}/`, { params: { grade } }),
 
-  getTopics: (subjectSlug: string) =>
-    api.get<Topic[]>(`/academic/subjects/${subjectSlug}/topics/`),
+  getTopics: (subjectSlug: string, grade?: string) =>
+    api.get<Topic[]>(`/academic/subjects/${subjectSlug}/topics/`, { params: { grade } }),
 };
 
 // ── Content ───────────────────────────────────────────────────────────────────
@@ -60,8 +62,10 @@ export const contentService = {
 
   getResource: (slug: string) => api.get<Resource>(`/resources/${slug}/`),
 
+  checkAccess: (slug: string) => api.get<ResourceAccess>(`/resources/${slug}/access/`),
+
   downloadResource: (slug: string) =>
-    api.post<{ url: string }>(`/resources/${slug}/download/`),
+    api.post<DownloadLink>(`/resources/${slug}/download/`),
 
   getMyDownloads: (page?: number) =>
     api.get("/downloads/history/", { params: { page } }),
@@ -72,10 +76,15 @@ export const contentService = {
 export const commerceService = {
   getPlans: () => api.get<Plan[]>("/subscriptions/plans/"),
 
-  getSubscription: () => api.get<Subscription>("/subscriptions/me/"),
+  getSubscription: () => api.get<Subscription | null>("/subscriptions/me/"),
 
   initiatePayment: (plan_id: string, phone_number: string) =>
-    api.post("/payments/buy-premium/", { plan_id, phone_number }),
+    api.post<CheckoutResponse>("/payments/checkout/", { plan_id, phone_number }),
+
+  getPaymentStatus: (checkoutRequestId: string) =>
+    api.get<PaymentStatus>(`/payments/status/${checkoutRequestId}/`),
+
+  cancelAutoRenew: () => api.post<Subscription>("/subscriptions/cancel/"),
 
   getMyPayments: () => api.get("/payments/history/"),
 };
@@ -86,7 +95,7 @@ export const communityService = {
   getReviews: (resourceId: string) =>
     api.get(`/reviews/resource/${resourceId}/`),
 
-  createReview: (data: { resource: string; rating: number; comment?: string }) =>
+  createReview: (data: { resource_id: string; rating: number; comment?: string }) =>
     api.post("/reviews/", data),
 };
 

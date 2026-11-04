@@ -1,39 +1,68 @@
-version: '3.8'
+# Local development stack: PostgreSQL, Redis, FastAPI backend and Next.js frontend.
+#   docker compose up --build
+#   docker compose exec api python seed_data.py
+#   docker compose exec api python -m scripts.create_superadmin --email you@example.com
+# Development-only credentials below. Never reuse them in a real environment.
 
 services:
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - APP_ENV=development
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/educore
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=prod_fallback_secret_signing_key_string_09871234
-      - JWT_SECRET_KEY=prod_fallback_secret_signing_key_string_09871234
-      - JWT_REFRESH_SECRET=prod_fallback_refresh_signing_key_string_56784321
-      - CLOUDFLARE_ENDPOINT=https://cloudfarestorage.com
-      - CLOUDFLARE_ACCESS_KEY=mock_key
-      - CLOUDFLARE_SECRET_KEY=mock_secret
-    depends_on:
-      - db
-      - redis
-
   db:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=educore
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: educore
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d educore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/educore
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: http://localhost:3000
+      SECRET_KEY: dev-only-secret-key-change-me-0001
+      JWT_SECRET_KEY: dev-only-jwt-access-key-change-me-0002
+      JWT_REFRESH_SECRET: dev-only-jwt-refresh-key-change-me-0003
+      MPESA_CALLBACK_SECRET: dev-only-callback-secret
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    environment:
+      # Server components call the API over the private Docker network.
+      API_INTERNAL_URL: http://api:8000
+      NEXT_PUBLIC_API_URL: http://api:8000
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

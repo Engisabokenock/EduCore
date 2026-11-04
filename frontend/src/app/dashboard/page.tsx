@@ -46,7 +46,8 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const hasActiveSub = ["active", "grace_period"].includes(subscriptionData?.data?.status ?? "");
+  // "canceled" keeps access until the paid period ends; the API computes this.
+  const hasActiveSub = !!subscriptionData?.data?.has_access;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -111,7 +112,7 @@ export default function DashboardPage() {
             {
               icon: Star,
               label: "Plan",
-              value: subscriptionData?.data?.plan?.name ?? "Free",
+              value: hasActiveSub ? subscriptionData?.data?.plan?.name ?? "Premium" : "Free",
               color: "bg-yellow-50 text-yellow-600",
             },
             {

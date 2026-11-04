@@ -9,6 +9,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { BookOpen, Loader2 } from "lucide-react";
 import { authService } from "@/services/api-service";
+import { getApiErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 
 const schema = z.object({
@@ -46,16 +47,10 @@ export default function RegisterPage() {
       const res = await authService.register(data);
       login(res.data.tokens, res.data.user);
       toast.success("Account created! Check your email to verify.");
-      router.push("/dashboard");
+      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      router.push(redirect && redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard");
     } catch (err: unknown) {
-      const errorData = (err as { response?: { data?: Record<string, unknown> } })
-        ?.response?.data;
-      const message = typeof errorData?.error === "string"
-        ? errorData.error
-        : typeof errorData?.detail === "string"
-          ? errorData.detail
-          : "Registration failed. Please try again.";
-      toast.error(message as string);
+      toast.error(getApiErrorMessage(err, "Registration failed. Please try again."));
     } finally {
       setLoading(false);
     }

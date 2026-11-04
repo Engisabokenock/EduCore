@@ -30,7 +30,13 @@ class PaymentTransaction(Base):
     __tablename__ = "payment_transactions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False)
+    # The plan this payment purchases. The price is always taken from the plan on the
+    # server; the client never chooses the amount.
+    plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True
+    )
+    account_reference: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     # Financial Identifiers
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
@@ -52,3 +58,4 @@ class PaymentTransaction(Base):
     )
 
     user: Mapped["User"] = relationship(lazy="raise")
+    plan: Mapped[Optional["SubscriptionPlan"]] = relationship(lazy="joined")

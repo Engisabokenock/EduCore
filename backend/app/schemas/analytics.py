@@ -1,6 +1,5 @@
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
-from typing import Optional
 
 class ChartInterval(str, Enum):
     DAILY = "daily"

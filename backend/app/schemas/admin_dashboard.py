@@ -1,10 +1,7 @@
 import uuid
-from enum import Enum
-from typing import Optional, List, Any
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from typing import Optional, List
+from pydantic import BaseModel, Field, EmailStr
 from app.models.base import UserRole
-from app.models.resource import ResourceTypeVariant, AcademicTerm
-from app.models.subscription import SubscriptionState, PlanTier
 from app.models.payment import TransactionStatus
 
 # --- USER CONTROL CONTROL GRID ---
@@ -40,3 +37,12 @@ class SystemSettingsUpdatePayload(BaseModel):
 class AdminBulkActionRequest(BaseModel):
     target_ids: List[uuid.UUID] = Field(..., min_length=1)
     action: str = Field(..., description="Action mappings: 'approve', 'reject', 'purge', 'archive', 'activate'")
+
+
+class AdminDashboardStats(BaseModel):
+    total_users: int
+    active_subscriptions: int
+    total_revenue: float
+    pending_reviews: int
+    total_resources: int
+    total_schools: int

@@ -2,10 +2,10 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Index, Enum as SQLEnum, Text
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 class NotificationChannel(str, Enum):
     EMAIL = "email"
@@ -25,8 +25,8 @@ class NotificationPreference(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
-    event_type: Mapped[NotificationEvent] = mapped_column(SQLEnum(NotificationEvent), nullable=False)
-    channel: Mapped[NotificationChannel] = mapped_column(SQLEnum(NotificationChannel), nullable=False)
+    event_type: Mapped[NotificationEvent] = mapped_column(pg_enum(NotificationEvent), nullable=False)
+    channel: Mapped[NotificationChannel] = mapped_column(pg_enum(NotificationChannel), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     __table_args__ = (
@@ -38,8 +38,8 @@ class NotificationLog(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
-    event_type: Mapped[NotificationEvent] = mapped_column(SQLEnum(NotificationEvent), nullable=False, index=True)
-    channel: Mapped[NotificationChannel] = mapped_column(SQLEnum(NotificationChannel), nullable=False)
+    event_type: Mapped[NotificationEvent] = mapped_column(pg_enum(NotificationEvent), nullable=False, index=True)
+    channel: Mapped[NotificationChannel] = mapped_column(pg_enum(NotificationChannel), nullable=False)
 
     # Payload Metrics
     recipient_address: Mapped[str] = mapped_column(String(255), nullable=False)

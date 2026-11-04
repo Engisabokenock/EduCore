@@ -22,6 +22,7 @@ class DownloadLog(Base):
     __table_args__ = (
         Index("ix_downloads_user_timeline", "user_id", "downloaded_at"),
         Index("ix_downloads_resource_timeline", "resource_id", "downloaded_at"),
+        Index("ix_downloads_ip_timeline", "ip_address", "downloaded_at"),
     )
 
     # Relationships

@@ -8,6 +8,7 @@ from alembic import context
 sys.path.insert(0, os.path.abspath("."))
 
 from app.core.database import Base, engine
+import app.models  # noqa: F401  (registers every table on Base.metadata)
 
 config = context.config
 

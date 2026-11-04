@@ -45,10 +45,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function GradePage({ params }: Props) {
-  const [grade, subjectsData] = await Promise.all([
-    serverApi.getGrade(params.grade),
-    serverApi.getSubjects(),
-  ]);
+  const grade = await serverApi.getGrade(params.grade);
 
   const fallbackGrade = {
     id: params.grade,
@@ -64,7 +61,8 @@ export default async function GradePage({ params }: Props) {
 
   const gradeData = grade ?? fallbackGrade;
 
-  const subjects = grade ? subjectsData ?? [] : [];
+  // Only this grade's subjects (previously every subject of every grade was listed).
+  const subjects = grade?.subjects ?? [];
 
   const jsonLd = {
     "@context": "https://schema.org",

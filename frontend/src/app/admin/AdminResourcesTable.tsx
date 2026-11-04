@@ -6,12 +6,12 @@ import { BookOpen } from "lucide-react";
 import Link from "next/link";
 
 export function AdminResourcesTable() {
+  // Read-only summary. (This widget previously fired a bulk "publish" mutation as a
+  // query on every page load.)
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-resources-summary"],
-    queryFn: () => adminApi.bulkResourceAction({ target_ids: [], action: "publish" }),
+    queryKey: ["admin-stats"],
+    queryFn: async () => (await adminApi.getStats()).data,
   });
-
-  const result = data?.data;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100">
@@ -36,7 +36,7 @@ export function AdminResourcesTable() {
             Use the <span className="font-medium">Manage</span> link to bulk-archive, publish, or purge resources.
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            Last action status: {result?.status ?? "N/A"}
+            {data ? `${data.total_resources} active resources in the catalogue.` : "Resource totals unavailable."}
           </p>
         </div>
       )}

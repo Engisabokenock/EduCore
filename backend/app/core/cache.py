@@ -1,58 +1,107 @@
+"""
+Redis access with graceful degradation.
+
+Redis is an accelerator (cache, rate-limit counters), never a hard dependency: a
+missing or malformed REDIS_URL, or a Redis outage, must not take the API down. All
+helpers log and fall back instead of raising.
+"""
 import json
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
+
 from redis.asyncio import ConnectionPool, Redis
+
 from app.core.config import settings
 
 logger = logging.getLogger("educore.performance.cache")
 
-# Initialize highly optimized connection pool for Redis clusters.
-# pool_size and timeout thresholds configured for low-overhead re-use.
-redis_pool = ConnectionPool.from_url(
-    settings.REDIS_URL,
-    max_connections=50,
-    socket_timeout=5.0,
-    socket_connect_timeout=5.0,
-    retry_on_timeout=True,
-)
+
+def _build_pool() -> Optional[ConnectionPool]:
+    url = settings.REDIS_URL
+    if not url:
+        logger.warning("REDIS_URL not set; caching and distributed rate limiting are disabled.")
+        return None
+    try:
+        return ConnectionPool.from_url(
+            url,
+            max_connections=50,
+            socket_timeout=2.0,
+            socket_connect_timeout=2.0,
+            retry_on_timeout=True,
+            health_check_interval=30,
+        )
+    except ValueError as exc:
+        # Typical cause: an Upstash REST token pasted instead of the rediss:// URL.
+        logger.error(
+            "REDIS_URL is not a valid redis:// or rediss:// URL (%s); Redis features disabled.", exc
+        )
+        return None
 
 
-def get_redis_client() -> Redis:
-    """Returns a thread-safe async Redis client instance from the pool."""
+redis_pool: Optional[ConnectionPool] = _build_pool()
+
+
+def get_redis_client() -> Optional[Redis]:
+    """Return a pooled async Redis client, or None when Redis is not configured."""
+    if redis_pool is None:
+        return None
     return Redis(connection_pool=redis_pool)
 
 
+async def close_redis() -> None:
+    if redis_pool is not None:
+        await redis_pool.disconnect()
+
+
 class CacheManager:
-    """High-utility interface abstraction managing structural serialization caching layers."""
+    """JSON cache-aside helpers. Every method is a safe no-op without Redis."""
 
     @staticmethod
     async def get(key: str) -> Optional[Any]:
-        """Fetches and de-serializes cached entries down from memory pools."""
-        async with get_redis_client() as client:
-            try:
+        client = get_redis_client()
+        if client is None:
+            return None
+        try:
+            async with client:
                 data = await client.get(key)
                 return json.loads(data) if data else None
-            except Exception as e:
-                logger.error(f"Redis memory read exception trace: {str(e)}")
-                return None
+        except Exception as exc:
+            logger.warning("Redis read failed for %s: %s", key, exc)
+            return None
 
     @staticmethod
     async def set(key: str, value: Any, expire_seconds: int = 300) -> bool:
-        """Serializes and records high-frequency runtime data maps into Redis."""
-        async with get_redis_client() as client:
-            try:
-                serialized_data = json.dumps(value, default=str)
-                await client.set(key, serialized_data, ex=expire_seconds)
+        client = get_redis_client()
+        if client is None:
+            return False
+        try:
+            async with client:
+                await client.set(key, json.dumps(value, default=str), ex=expire_seconds)
                 return True
-            except Exception as e:
-                logger.error(f"Redis memory write exception trace: {str(e)}")
-                return False
+        except Exception as exc:
+            logger.warning("Redis write failed for %s: %s", key, exc)
+            return False
 
     @staticmethod
     async def invalidate(key: str) -> None:
-        """Evicts stale data segments cleanly to guarantee multi-node record consistency."""
-        async with get_redis_client() as client:
-            try:
+        client = get_redis_client()
+        if client is None:
+            return
+        try:
+            async with client:
                 await client.delete(key)
-            except Exception as e:
-                logger.error(f"Redis memory eviction exception trace: {str(e)}")
+        except Exception as exc:
+            logger.warning("Redis delete failed for %s: %s", key, exc)
+
+    @staticmethod
+    async def invalidate_prefix(prefix: str) -> None:
+        """Evict every key starting with ``prefix`` (used after content changes)."""
+        client = get_redis_client()
+        if client is None:
+            return
+        try:
+            async with client:
+                async for key in client.scan_iter(match=f"{prefix}*", count=500):
+                    await client.delete(key)
+        except Exception as exc:
+            logger.warning("Redis prefix eviction failed for %s: %s", prefix, exc)

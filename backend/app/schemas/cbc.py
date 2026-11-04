@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 from uuid import UUID
 from typing import Optional
 from app.models.cbc import ResourceType
@@ -42,7 +42,12 @@ class TopicOut(BaseModel):
     slug: str
     is_active: bool
     resource_count: int = 0
-    learning_outcomes: list[LearningOutcomeOut]
+    learning_outcomes: list[LearningOutcomeOut] = []
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def order(self) -> int:
+        return self.ordering
 
 # --- Subject Schemas ---
 class SubjectCreate(BaseModel):
@@ -75,10 +80,9 @@ class SubjectOut(BaseModel):
     order: int
     topic_count: int = 0
     grade: Optional[GradeInfo] = None
-    topics: Optional[list[TopicOut]] = []
 
 class SubjectDetailOut(SubjectOut):
-    topics: list[TopicOut]
+    topics: list[TopicOut] = []
 
 # --- Grade Schemas ---
 class GradeCreate(BaseModel):
@@ -98,7 +102,6 @@ class GradeOut(BaseModel):
     is_active: bool = True
     order: int = 0
     subject_count: int = 0
-    subjects: Optional[list[SubjectOut]] = []
 
 class GradeDetailOut(GradeOut):
-    subjects: list[SubjectOut]
+    subjects: list[SubjectOut] = []

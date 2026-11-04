@@ -1,9 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
 from app.models.asset import ExtendedResourceType, WorkflowApprovalState, AssetVisibilityScope
-import json
 
 
 class ResourceUploadPayload(BaseModel):

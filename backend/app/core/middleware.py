@@ -1,9 +1,23 @@
-import html
 import logging
+import time
+import uuid
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core.network import get_client_ip
+
 logger = logging.getLogger("educore.security.audit")
+
+# Swagger / ReDoc load their assets from a CDN and need inline scripts.
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+_API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+_DOCS_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+    "img-src 'self' data: https://fastapi.tiangolo.com; font-src 'self' https://fonts.gstatic.com; "
+    "frame-ancestors 'none'"
+)
 
 
 class TrailingSlashMiddleware(BaseHTTPMiddleware):
@@ -12,8 +26,10 @@ class TrailingSlashMiddleware(BaseHTTPMiddleware):
     resolve to their non-slash route definitions (``/auth/register``).
 
     The Next.js client consistently calls paths with a trailing slash; this keeps
-    the backend route definitions clean without per-route slash aliases.
+    the backend route definitions clean without per-route slash aliases or 307
+    redirects (which drop POST bodies in some clients).
     """
+
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.scope.get("path", "")
         if len(path) > 1 and path.endswith("/"):
@@ -21,48 +37,40 @@ class TrailingSlashMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-class ContentSanitizationMiddleware(BaseHTTPMiddleware):
-    """
-    Blocks Cross-Site Scripting (XSS) vectors.
-
-    Intercepts and cleanses incoming query strings prior to routing parameter ingestion.
-    """
-    async def dispatch(self, request: Request, call_next) -> Response:
-        # Sanitize query parameters text matrices safely
-        if request.query_params:
-            sanitized_params = {k: html.escape(v) for k, v in request.query_params.items()}
-            request.scope["query_string"] = bytes(
-                "&".join(f"{k}={v}" for k, v in sanitized_params.items()), "utf-8"
-            )
-        return await call_next(request)
-
-
 class ProductionSecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Injects industry-standard HTTP security headers into every outbound network response."""
+    """Injects standard HTTP security headers into every response."""
+
     async def dispatch(self, request: Request, call_next) -> Response:
         response: Response = await call_next(request)
+        is_docs = request.url.path.startswith(_DOCS_PATHS)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; object-src 'none';"
-        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"  # Enforce HTTPS Always
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = _DOCS_CSP if is_docs else _API_CSP
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
         return response
 
 
 class StructuralAuditLoggerMiddleware(BaseHTTPMiddleware):
     """
-    Tracks and records system operations and user actions.
+    Structured access log with a per-request correlation id.
 
-    Logs client execution pathways, target endpoints, response statuses, and identity vectors.
+    The id is taken from an inbound ``X-Request-ID`` (set by nginx / the load balancer)
+    or generated, echoed back in the response, and included in every log line so a
+    user-reported error can be traced end to end.
     """
+
     async def dispatch(self, request: Request, call_next) -> Response:
-        client_ip = request.client.host if request.client else "0.0.0.0"
-        method = request.method
-        path = request.url.path
-
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+        request.state.request_id = request_id
+        started = time.perf_counter()
         response = await call_next(request)
-
+        duration_ms = (time.perf_counter() - started) * 1000
+        response.headers["X-Request-ID"] = request_id
         logger.info(
-            f"AUDIT TRAIL: IP={client_ip} | METHOD={method} | PATH={path} | STATUS={response.status_code}"
+            "request_id=%s ip=%s method=%s path=%s status=%s duration_ms=%.1f",
+            request_id, get_client_ip(request), request.method, request.url.path,
+            response.status_code, duration_ms,
         )
         return response

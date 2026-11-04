@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 from app.models.review import ReviewModerationStatus
 
 class ReviewCreateRequest(BaseModel):
-    resource_id: uuid.UUID
+    resource_id: uuid.UUID = Field(..., validation_alias=AliasChoices("resource_id", "resource"))
     rating: int = Field(..., ge=1, le=5, description="Star rating grading system constraint baseline")
     comment: Optional[str] = Field(None, max_length=1000, description="Optional textual user context commentary feed")
 
@@ -21,14 +21,19 @@ class UserReviewerOut(BaseModel):
     full_name: str
     avatar_url: Optional[str] = None
 
+    # Overriding model_validate is bypassed for nested fields, so flatten the ORM user
+    # in a "before" validator instead (otherwise every review response failed with 500).
+    @model_validator(mode="before")
     @classmethod
-    def model_validate(cls, obj, **kwargs):
-        # Gracefully handle profile unboxing safely during model transitions
-        return cls(
-            id=obj.id,
-            full_name=obj.profile.full_name if (hasattr(obj, "profile") and obj.profile) else "Anonymous Learner",
-            avatar_url=obj.profile.avatar_url if (hasattr(obj, "profile") and obj.profile) else None
-        )
+    def _from_user(cls, obj):
+        if isinstance(obj, dict):
+            return obj
+        profile = getattr(obj, "profile", None)
+        return {
+            "id": obj.id,
+            "full_name": (profile.full_name if profile else None) or "EduCore learner",
+            "avatar_url": profile.avatar_url if profile else None,
+        }
 
 class ReviewResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

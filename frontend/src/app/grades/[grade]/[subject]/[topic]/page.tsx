@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, ChevronRight, Lock, Download, FileText } from "lucide-react";
 import { serverApi } from "@/lib/server-api";
+import YearFilter from "./YearFilter";
 import type { Resource } from "@/types";
 
 interface Props {
@@ -35,10 +36,10 @@ const YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [grade, subject] = await Promise.all([
     serverApi.getGrade(params.grade),
-    serverApi.getSubject(params.subject),
+    serverApi.getSubject(params.subject, params.grade),
   ]);
   // Fetch topic name from subject's topic list
-  const topics = await serverApi.getTopics(params.subject);
+  const topics = await serverApi.getTopics(params.subject, params.grade);
   const topic = topics?.find((t) => t.slug === params.topic);
 
   if (!grade || !subject || !topic) return { title: "Topic Not Found" };
@@ -115,8 +116,8 @@ function ResourceCard({ resource, gradeSlug, subjectSlug, topicSlug }: {
 export default async function TopicPage({ params, searchParams }: Props) {
   const [grade, subject, topics] = await Promise.all([
     serverApi.getGrade(params.grade),
-    serverApi.getSubject(params.subject),
-    serverApi.getTopics(params.subject),
+    serverApi.getSubject(params.subject, params.grade),
+    serverApi.getTopics(params.subject, params.grade),
   ]);
 
   if (!grade || !subject) notFound();
@@ -249,24 +250,7 @@ export default async function TopicPage({ params, searchParams }: Props) {
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-gray-500 mr-1">Year:</span>
-              <select
-                defaultValue={searchParams.year ?? ""}
-                onChange={(e) => {
-                  const url = new URL(window.location.href);
-                  if (e.target.value) {
-                    url.searchParams.set("year", e.target.value);
-                  } else {
-                    url.searchParams.delete("year");
-                  }
-                  window.location.href = url.toString();
-                }}
-                className="text-xs border border-gray-200 rounded-full px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-primary-400"
-              >
-                <option value="">All Years</option>
-                {YEARS.map((y) => (
-                  <option key={y} value={String(y)}>{y}</option>
-                ))}
-              </select>
+              <YearFilter years={YEARS} />
             </div>
           </div>
 

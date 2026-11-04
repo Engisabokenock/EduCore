@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -7,10 +6,11 @@ from sqlalchemy import and_
 from typing import List, Optional
 from app.core.database import get_db
 from app.core.exceptions import AuthorizationError, AppBaseException
-from app.api.deps import get_current_active_user
-from app.models.base import User, UserRole
+from app.api.deps import get_current_active_user, is_staff
+from app.services import subscription_service
+from app.storage.r2 import StorageProvider
+from app.models.base import User
 from app.models.asset import PortalResource, ExtendedResourceType, WorkflowApprovalState, AssetVisibilityScope
-from app.models.subscription import UserSubscription, SubscriptionState
 from app.models.payment import PaymentTransaction, TransactionStatus
 from app.schemas.asset import UnifiedResourceOut
 
@@ -22,6 +22,8 @@ async def public_browse_resources(
     category: Optional[ExtendedResourceType] = Query(None),
     grade_id: Optional[uuid.UUID] = Query(None),
     subject_id: Optional[uuid.UUID] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -41,6 +43,7 @@ async def public_browse_resources(
     if subject_id:
         stmt = stmt.where(PortalResource.subject_id == subject_id)
 
+    stmt = stmt.order_by(PortalResource.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -67,8 +70,8 @@ async def evaluate_download_clearance_vault(
     if not asset:
         raise AppBaseException("Resource not found", 404)
 
-    if current_user.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
-        return {"clearance": "granted", "download_url": asset.file_url}
+    if is_staff(current_user):
+        return {"clearance": "granted", "download_url": await StorageProvider().download_url(asset.file_url)}
 
     if asset.approval_state != WorkflowApprovalState.PUBLISHED:
         if asset.owner_id != current_user.id:
@@ -83,12 +86,8 @@ async def evaluate_download_clearance_vault(
             raise AuthorizationError("403 Forbidden: Resource access is restricted to members of the specific school")
 
     if asset.visibility == AssetVisibilityScope.PREMIUM or not asset.is_free:
-        if asset.requires_subscription:
-            sub_stmt = select(UserSubscription).where(
-                and_(UserSubscription.user_id == current_user.id, UserSubscription.status == SubscriptionState.ACTIVE)
-            )
-            if (await db.execute(sub_stmt)).scalar_one_or_none():
-                return {"clearance": "granted", "download_url": asset.file_url}
+        if asset.requires_subscription and await subscription_service.has_premium_access(db, current_user):
+            return {"clearance": "granted", "download_url": await StorageProvider().download_url(asset.file_url)}
 
         payment_stmt = select(PaymentTransaction).where(
             and_(
@@ -98,8 +97,8 @@ async def evaluate_download_clearance_vault(
             )
         )
         if (await db.execute(payment_stmt)).scalar_one_or_none():
-            return {"clearance": "granted", "download_url": asset.file_url}
+            return {"clearance": "granted", "download_url": await StorageProvider().download_url(asset.file_url)}
 
         raise AuthorizationError("403 Forbidden: Access Denied. Requires an active subscription package or a direct item purchase.")
 
-    return {"clearance": "granted", "download_url": asset.file_url}
+    return {"clearance": "granted", "download_url": await StorageProvider().download_url(asset.file_url)}

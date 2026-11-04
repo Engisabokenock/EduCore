@@ -1,111 +1,128 @@
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from fastapi import FastAPI, status, Depends
-from fastapi.middleware.cors import CORSMiddleware
 
-# Core configurations and security guards
+from fastapi import Depends, FastAPI, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app import models as _orm_models  # noqa: F401  (register every ORM mapper before the first request)
+from app.api.deps import sliding_window_rate_limiter
+from app.core.cache import close_redis, get_redis_client
+from app.core.compress import configure_compression_layers
 from app.core.config import settings
-from app.core.exceptions import AppBaseException, app_exception_handler, global_catchall_handler
 from app.core.database import engine
-from app.core.cache import redis_pool
+from app.core.exceptions import (
+    AppBaseException,
+    app_exception_handler,
+    global_catchall_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 from app.core.middleware import (
-    ContentSanitizationMiddleware,
     ProductionSecurityHeadersMiddleware,
     StructuralAuditLoggerMiddleware,
     TrailingSlashMiddleware,
 )
-from app.core.compress import configure_compression_layers
-from app.api.deps import sliding_window_rate_limiter
 
-# -------------------------------------------------------------------------
-# IMPORT ALL MODULE ROUTERS (Connecting them to the system)
-# -------------------------------------------------------------------------
-from app.api.v1.auth import router as auth_router
-from app.api.v1.users import router as users_router
-from app.api.v1.cbc import router as cbc_router
-from app.api.v1.resources import router as content_router
-from app.api.v1.search import router as search_router
-from app.api.v1.downloads import router as downloads_router
-from app.api.v1.payments import router as payments_router
-from app.api.v1.subscriptions import router as subscriptions_router
-from app.api.v1.notifications import router as notifications_router
-from app.api.v1.reviews import router as reviews_router
+from app.api.v1.admin_dashboard import router as admin_router, security_router
 from app.api.v1.analytics import router as analytics_router
-from app.api.v1.schools import router as schools_router
-from app.api.v1.admin_dashboard import router as admin_router, security_router as security_router
-from app.api.v1.portal_resources import router as portal_assets_router
+from app.api.v1.auth import router as auth_router
+from app.api.v1.cbc import router as cbc_router
+from app.api.v1.downloads import router as downloads_router
 from app.api.v1.internal_control_plane import router as internal_control_plane_router
+from app.api.v1.notifications import router as notifications_router
+from app.api.v1.payments import router as payments_router
+from app.api.v1.portal_resources import router as portal_assets_router
+from app.api.v1.resources import router as content_router
+from app.api.v1.reviews import router as reviews_router
+from app.api.v1.schools import router as schools_router
+from app.api.v1.search import router as search_router
+from app.api.v1.subscriptions import router as subscriptions_router
+from app.api.v1.users import router as users_router
+
+logger = logging.getLogger("educore")
+API_PREFIX = "/api/v1"
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Handles low-overhead pooling connect and teardown loops cleanly."""
+async def lifespan(_: FastAPI):
+    logger.info("EduCore API starting (env=%s)", settings.APP_ENV)
     yield
     await engine.dispose()
-    await redis_pool.disconnect()
+    await close_redis()
 
 
-# Initialize the global application gateway
 app = FastAPI(
     title=settings.APP_NAME,
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
-    redirect_slashes=True,
-    docs_url="/docs" if settings.APP_ENV != "production" else None,
-    redoc_url="/redoc" if settings.APP_ENV != "production" else None,
+    redirect_slashes=False,  # TrailingSlashMiddleware normalises paths without 307 redirects
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
     dependencies=[Depends(sliding_window_rate_limiter)],
 )
 
-# -------------------------------------------------------------------------
-# PRODUCTION CROSS-ORIGIN ISOLATION GATES (CORS)
-# -------------------------------------------------------------------------
+# Middleware order: the last one added runs first on the request.
+configure_compression_layers(app)
+app.add_middleware(ProductionSecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,   # never "*" together with credentials
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
+    max_age=600,
 )
-
-# Attach Security Middlewares
 app.add_middleware(TrailingSlashMiddleware)
-app.add_middleware(ContentSanitizationMiddleware)
-app.add_middleware(ProductionSecurityHeadersMiddleware)
 app.add_middleware(StructuralAuditLoggerMiddleware)
 
-# Response Payload Compression Pipeline
-configure_compression_layers(app)
-
-# Bind Operational Exception Handlers globally
 app.add_exception_handler(AppBaseException, app_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, global_catchall_handler)
 
-# -------------------------------------------------------------------------
-# MOUNT ROUTERS WITH THE EXACT API PREFIX EXPECTED BY THE FRONTEND
-# -------------------------------------------------------------------------
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(users_router, prefix="/api/v1")
-app.include_router(cbc_router, prefix="/api/v1")
-app.include_router(content_router, prefix="/api/v1")
-app.include_router(search_router, prefix="/api/v1")
-app.include_router(downloads_router, prefix="/api/v1")
-app.include_router(payments_router, prefix="/api/v1")
-app.include_router(subscriptions_router, prefix="/api/v1")
-app.include_router(notifications_router, prefix="/api/v1")
-app.include_router(reviews_router, prefix="/api/v1")
-app.include_router(analytics_router, prefix="/api/v1")
-app.include_router(schools_router, prefix="/api/v1")
-app.include_router(admin_router, prefix="/api/v1")
-app.include_router(security_router, prefix="/api/v1")
-app.include_router(portal_assets_router, prefix="/api/v1")
-app.include_router(internal_control_plane_router, prefix="/api/v1")
+for router in (
+    auth_router, users_router, cbc_router, content_router, search_router, downloads_router,
+    payments_router, subscriptions_router, notifications_router, reviews_router,
+    analytics_router, schools_router, admin_router, security_router, portal_assets_router,
+    internal_control_plane_router,
+):
+    app.include_router(router, prefix=API_PREFIX)
 
 
-@app.get("/api/v1/health", status_code=status.HTTP_200_OK, tags=["Infrastructure Monitoring"])
+@app.get(f"{API_PREFIX}/health", tags=["Infrastructure Monitoring"])
 async def root_health_ping():
-    """Confirms backend is alive and connected."""
-    return {
-        "status": "connected",
-        "platform": "EduCore Kenya",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    """Liveness and dependency status for load balancers and uptime monitors."""
+    checks = {"database": "ok", "redis": "disabled"}
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.error("Health check: database unavailable: %s", exc)
+        checks["database"] = "unavailable"
+
+    client = get_redis_client()
+    if client is not None:
+        try:
+            async with client:
+                await client.ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "unavailable"
+
+    healthy = checks["database"] == "ok"
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "connected" if healthy else "degraded",
+            "platform": "EduCore Kenya",
+            "checks": checks,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )

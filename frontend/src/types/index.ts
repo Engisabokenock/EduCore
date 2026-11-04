@@ -13,7 +13,10 @@ export interface User {
   phone: string;
   role: UserRole;
   is_verified: boolean;
+  is_active?: boolean;
+  avatar_url?: string | null;
   date_joined: string;
+  last_login_at?: string | null;
   profile: Profile | null;
 }
 
@@ -62,8 +65,9 @@ export interface Topic {
   id: string;
   name: string;
   slug: string;
-  description: string;
+  description?: string;
   order: number;
+  ordering?: number;
   is_active: boolean;
   resource_count: number;
 }
@@ -82,6 +86,8 @@ export interface Resource {
   subject: { id: string; name: string; slug: string } | null;
   topic: { id: string; name: string; slug: string } | null;
   thumbnail: string | null;
+  thumbnail_url?: string | null;
+  type_variant?: string;
   file_type: string;
   file_size: number;
   year: number;
@@ -92,8 +98,19 @@ export interface Resource {
   is_published: boolean;
   published_at: string | null;
   created_at: string;
-  file?: string;
-  can_access?: boolean;
+  can_access?: boolean | null;
+}
+
+export interface ResourceAccess {
+  can_access: boolean;
+  is_premium: boolean;
+  requires_login: boolean;
+  requires_subscription: boolean;
+}
+
+export interface DownloadLink {
+  url: string;
+  expires_in: number;
 }
 
 export interface Plan {
@@ -113,11 +130,28 @@ export interface Subscription {
   id: string;
   user_id: string;
   plan: Plan;
-  status: "active" | "expired" | "cancelled" | "pending" | "grace_period";
+  status: "active" | "expired" | "canceled" | "grace_period";
   auto_renew: boolean;
   current_period_start: string;
   current_period_end: string;
   grace_period_end: string | null;
+  has_access: boolean;
+}
+
+export interface CheckoutResponse {
+  success: boolean;
+  message: string;
+  checkout_request_id: string;
+  merchant_request_id: string;
+  amount: number;
+}
+
+export interface PaymentStatus {
+  checkout_request_id: string;
+  status: "pending" | "completed" | "failed" | "refunded";
+  amount: number;
+  mpesa_receipt_number: string | null;
+  failure_reason: string | null;
 }
 
 export interface Payment {
@@ -165,11 +199,11 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+/** Backend error envelope. */
 export interface ApiError {
-  error: boolean;
-  status_code: number;
-  detail: Record<string, string[]> | string;
-  message: string;
+  success: false;
+  error: string;
+  detail?: unknown;
 }
 
 // Admin types

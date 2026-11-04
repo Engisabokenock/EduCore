@@ -1,12 +1,11 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import and_, desc
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthorizationError
-from app.api.deps import get_current_user, RoleChecker
+from app.api.deps import get_current_user, RoleChecker, has_role
 from app.models.base import User, UserRole
 from app.models.school import School, Classroom, ClassroomEnrollment, ClassAssignment, AssignmentSubmission, AssignmentStatus
 from app.schemas.school import (
@@ -67,8 +66,10 @@ async def issue_classroom_assignment(
     db: AsyncSession = Depends(get_db)
 ):
     """Enables verified teachers to dispatch tasks and learning outcomes tests down to a classroom stream matrix."""
-    if current_user.role.name != UserRole.TEACHER:
-        raise AuthorizationError("Only Educators are cleared to broadcast coursework files parameters")
+    if not has_role(current_user, [UserRole.TEACHER, UserRole.SCHOOL_ADMIN, UserRole.ADMIN, UserRole.SUPER_ADMIN]):
+        raise AuthorizationError("Only teachers can create assignments.")
+    if not (await db.execute(select(Classroom.id).where(Classroom.id == classroom_id))).first():
+        raise AppBaseException("Classroom not found", 404)
 
     assignment = ClassAssignment(
         classroom_id=classroom_id,
@@ -79,11 +80,12 @@ async def issue_classroom_assignment(
     await db.flush()
     return assignment
 
-@router.post("/assignments/{assignment_id}/grade/{submission_id}", status_code=status.HTTP_200_OK, dependencies=[teacher_protect])
+@router.post("/assignments/{assignment_id}/grade/{submission_id}", status_code=status.HTTP_200_OK)
 async def grade_student_submission(
     assignment_id: uuid.UUID,
     submission_id: uuid.UUID,
     payload: GradeAssignmentRequest,
+    current_user: User = Depends(RoleChecker([UserRole.TEACHER])),
     db: AsyncSession = Depends(get_db)
 ):
     """Allows teachers to write scores, grading metrics, and structural text evaluations back to submissions."""
@@ -92,7 +94,12 @@ async def grade_student_submission(
     submission = ctx.scalar_one_or_none()
 
     if not submission or submission.assignment_id != assignment_id:
-        raise AppBaseException("Submission file tracking node reference mismatch", 404)
+        raise AppBaseException("Submission not found", 404)
+    assignment = (await db.execute(select(ClassAssignment).where(ClassAssignment.id == assignment_id))).scalar_one()
+    if assignment.teacher_id != current_user.id and not has_role(current_user, [UserRole.SUPER_ADMIN]):
+        raise AuthorizationError("You can only grade submissions for your own assignments.")
+    if payload.score_achieved > assignment.max_score:
+        raise AppBaseException(f"Score cannot exceed the maximum of {assignment.max_score}.", 400)
 
     submission.score_achieved = payload.score_achieved
     submission.teacher_feedback = payload.teacher_feedback

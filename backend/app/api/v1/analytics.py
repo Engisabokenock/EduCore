@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, and_, or_, desc, cast, Date, String
+from sqlalchemy import func, and_, desc, cast, String
 from sqlalchemy.future import select
-from uuid import UUID
 from app.core.database import get_db
 from app.api.deps import RoleChecker
 from app.models.base import User, UserRole

@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from sqlalchemy import String, ForeignKey, Text, Enum as SQLEnum, DateTime, Boolean
+from sqlalchemy import String, ForeignKey, Text, DateTime, Boolean, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 class ResourceType(str, Enum):
     DOCUMENT = "document"
@@ -25,7 +25,8 @@ class Grade(Base):
 
     # Cascade relationships downstream
     subjects: Mapped[list["Subject"]] = relationship(
-        back_populates="grade", cascade="all, delete-orphan", lazy="selectin"
+        back_populates="grade", cascade="all, delete-orphan", lazy="selectin",
+        order_by="Subject.order",
     )
 
 class Subject(Base):
@@ -36,7 +37,8 @@ class Subject(Base):
     name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     code: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    # Unique per grade: "mathematics" exists once in every grade.
+    slug: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     icon: Mapped[str] = mapped_column(String(10), nullable=True)
     color: Mapped[str] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -44,7 +46,12 @@ class Subject(Base):
 
     grade: Mapped[Grade] = relationship(back_populates="subjects")
     topics: Mapped[list["Topic"]] = relationship(
-        back_populates="subject", cascade="all, delete-orphan", lazy="selectin"
+        back_populates="subject", cascade="all, delete-orphan", lazy="selectin",
+        order_by="Topic.ordering",
+    )
+
+    __table_args__ = (
+        Index("ux_cbc_subjects_grade_slug", "grade_id", "slug", unique=True),
     )
 
 class Topic(Base):
@@ -54,7 +61,8 @@ class Topic(Base):
     subject_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cbc_subjects.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(150), index=True, nullable=False)
     ordering: Mapped[int] = mapped_column(default=0, nullable=False)
-    slug: Mapped[str] = mapped_column(String(150), unique=True, index=True, nullable=False)
+    # Unique per subject: "general" exists once in every subject.
+    slug: Mapped[str] = mapped_column(String(150), index=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     subject: Mapped[Subject] = relationship(back_populates="topics")
@@ -63,6 +71,10 @@ class Topic(Base):
     )
     resources: Mapped[list["CurriculumResource"]] = relationship(
         back_populates="topic", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+    __table_args__ = (
+        Index("ux_cbc_topics_subject_slug", "subject_id", "slug", unique=True),
     )
 
 class LearningOutcome(Base):
@@ -81,7 +93,7 @@ class CurriculumResource(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cbc_topics.id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
-    resource_type: Mapped[ResourceType] = mapped_column(SQLEnum(ResourceType), nullable=False)
+    resource_type: Mapped[ResourceType] = mapped_column(pg_enum(ResourceType), nullable=False)
     url: Mapped[str] = mapped_column(String(512), nullable=False) # Maps to Cloudflare R2 links
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

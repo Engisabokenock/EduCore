@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Numeric, Index, Enum as SQLEnum
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Numeric, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.core.database import Base
+from app.core.database import Base, pg_enum
 
 class PlanTier(str, Enum):
     WEEKLY = "weekly"
@@ -23,7 +23,7 @@ class SubscriptionPlan(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-    tier: Mapped[PlanTier] = mapped_column(SQLEnum(PlanTier), unique=True, nullable=False)
+    tier: Mapped[PlanTier] = mapped_column(pg_enum(PlanTier), unique=True, nullable=False)
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     duration_days: Mapped[int] = mapped_column(nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -40,7 +40,7 @@ class UserSubscription(Base):
     plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("subscription_plans.id", ondelete="RESTRICT"), nullable=False)
 
     # Structural Status Configurations
-    status: Mapped[SubscriptionState] = mapped_column(SQLEnum(SubscriptionState), default=SubscriptionState.ACTIVE, nullable=False, index=True)
+    status: Mapped[SubscriptionState] = mapped_column(pg_enum(SubscriptionState), default=SubscriptionState.ACTIVE, nullable=False, index=True)
     auto_renew: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Dynamic Timeline Tracking Parameters

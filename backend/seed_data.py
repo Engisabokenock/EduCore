@@ -11,6 +11,7 @@ import json
 from decimal import Decimal
 
 from sqlalchemy.future import select
+import app.models  # noqa: F401
 from app.core.database import AsyncSessionLocal
 from app.models.cbc import Grade, Subject, Topic, LearningOutcome
 from app.models.subscription import SubscriptionPlan, PlanTier
@@ -114,7 +115,8 @@ async def seed_subjects(session, grade_ids):
             subject = Subject(
                 grade_id=grade_id,
                 name=subj["name"],
-                code=f"{code}-{subj['slug'][:3].upper()}",
+                # Full slug keeps codes unique ("CRE / IRE" and "Creative Arts" both start "cre").
+                code=f"{code}-{subj['slug'].upper()}"[:30],
                 slug=subj["slug"],
                 description=f"CBC {subj['name']} Resource Book — {GRADE_NAMES[code]}",
                 icon=subj["icon"],

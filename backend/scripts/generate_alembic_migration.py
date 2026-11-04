@@ -1,4 +1,10 @@
-"""Generate an initial Alembic migration from current SQLAlchemy models."""
+"""Generate an initial Alembic migration from current SQLAlchemy models.
+
+DEPRECATED for schema changes: this regenerates the *initial* snapshot only and does
+not emit indexes. For every change after the initial schema, create a normal revision:
+
+    alembic revision --autogenerate -m "describe change"
+"""
 import os
 import sys
 from datetime import datetime, timezone
@@ -8,6 +14,7 @@ from sqlalchemy.schema import CreateTable, DropTable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.core.database import Base, engine
+import app.models.asset
 import app.models.base
 import app.models.cbc
 import app.models.resource
@@ -49,7 +56,6 @@ def compile_ddl(dialect_name: str = "postgresql"):
     for table in Base.metadata.sorted_tables:
         raw_ddl = str(CreateTable(table).compile(dialect=dialect_cls))
         stmts.append(f"CREATE TABLE IF NOT EXISTS {raw_ddl[len('CREATE TABLE '):]}")
-        stmts.append(f"ALTER TABLE IF EXISTS {table.name} OWNER TO postgres;")
     return stmts
 
 

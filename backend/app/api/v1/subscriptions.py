@@ -1,156 +1,76 @@
-import uuid
-from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, status, Query
+from typing import Optional
+
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import and_, or_
+
+from app.api.deps import RoleChecker, get_current_user
 from app.core.database import get_db
-from app.core.exceptions import AppBaseException, AuthorizationError
-from app.api.deps import get_current_user, RoleChecker
+from app.core.exceptions import AppBaseException
 from app.models.base import User, UserRole
-from app.models.subscription import UserSubscription, SubscriptionPlan, SubscriptionState, PlanTier
-from app.schemas.subscription import UserSubscriptionResponse, SubscriptionPlanResponse, TriggerSubscriptionRenewal
+from app.models.subscription import SubscriptionPlan
+from app.schemas.payment import StkPushResponse
+from app.schemas.subscription import SubscriptionPlanResponse, TriggerSubscriptionRenewal, UserSubscriptionResponse
+from app.services import payment_service, subscription_service
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscription Ledger & Billing Lifecycle Engines"])
 
-# --- CORE CATALOG MANAGEMENT ---
-@router.get("/plans", response_model=list[SubscriptionPlanResponse], status_code=status.HTTP_200_OK)
+
+def _with_access(sub) -> Optional[dict]:
+    if sub is None:
+        return None
+    data = UserSubscriptionResponse.model_validate(sub).model_dump()
+    data["has_access"] = subscription_service.subscription_grants_access(sub)
+    return data
+
+
+@router.get("/plans", response_model=list[SubscriptionPlanResponse])
 async def fetch_available_monetization_plans(db: AsyncSession = Depends(get_db)):
-    """Retrieves all active platform subscription tiers sorted linearly by price index values."""
-    stmt = select(SubscriptionPlan).where(SubscriptionPlan.is_available == True).order_by(SubscriptionPlan.price)
-    execution_context = await db.execute(stmt)
-    return execution_context.scalars().all()
+    """Active plans in display order."""
+    stmt = (
+        select(SubscriptionPlan)
+        .where(SubscriptionPlan.is_available.is_(True))
+        .order_by(SubscriptionPlan.sort_order, SubscriptionPlan.price)
+    )
+    return (await db.execute(stmt)).scalars().all()
 
-# --- CLIENT CONTRACT ACCESSIBILITIES ---
-@router.get("/me", response_model=UserSubscriptionResponse, status_code=status.HTTP_200_OK)
-async def query_my_subscription_state(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Returns subscription mapping status vectors tracking the authenticated identity profile context."""
-    stmt = select(UserSubscription).where(UserSubscription.user_id == current_user.id)
-    execution_context = await db.execute(stmt)
-    subscription = execution_context.scalar_one_or_none()
 
-    if not subscription:
-        raise AppBaseException("No database contract record tracking found for this specific profile root", 404)
-    return subscription
+@router.get("/me", response_model=Optional[UserSubscriptionResponse])
+async def query_my_subscription_state(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """The caller's subscription, or null when they have never subscribed."""
+    return _with_access(await subscription_service.get_user_subscription(db, current_user.id))
 
-@router.post("/renew", response_model=UserSubscriptionResponse, status_code=status.HTTP_202_ACCEPTED)
+
+@router.post("/renew", response_model=StkPushResponse, status_code=status.HTTP_202_ACCEPTED)
 async def execute_contract_renewal(
     payload: TriggerSubscriptionRenewal,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Executes contract changes to extend structural timelines or switch plans.
-
-    This interface connects to the Phase 7 Safaricom M-Pesa client engine.
+    Start payment for a plan. Access is granted only when M-Pesa confirms the payment
+    (previously this endpoint activated paid plans without any payment).
     """
-    plan_stmt = select(SubscriptionPlan).where(SubscriptionPlan.id == payload.plan_id)
-    plan_context = await db.execute(plan_stmt)
-    plan = plan_context.scalar_one_or_none()
+    transaction = await payment_service.start_checkout(db, current_user, payload.plan_id, payload.phone_number)
+    return {
+        "success": True,
+        "message": "Check your phone and enter your M-Pesa PIN to complete the renewal.",
+        "checkout_request_id": transaction.checkout_request_id,
+        "merchant_request_id": transaction.merchant_request_id,
+        "amount": float(transaction.amount),
+    }
 
-    if not plan or not plan.is_available:
-        raise AppBaseException("The targeted selection code matches an obsolete or missing payment plan configuration node", 400)
 
-    sub_stmt = select(UserSubscription).where(UserSubscription.user_id == current_user.id)
-    sub_context = await db.execute(sub_stmt)
-    subscription = sub_context.scalar_one_or_none()
+@router.post("/cancel", response_model=UserSubscriptionResponse)
+async def cancel_subscription_auto_renew(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Turn off auto-renew. Access continues until the end of the paid period."""
+    sub = await subscription_service.cancel_auto_renew(db, current_user.id)
+    if sub is None:
+        raise AppBaseException("You do not have an active subscription to cancel.", 400)
+    return _with_access(sub)
 
-    now_utc = datetime.now(timezone.utc)
-    time_extension = timedelta(days=plan.duration_days)
 
-    if subscription and subscription.status in [SubscriptionState.ACTIVE, SubscriptionState.GRACE_PERIOD]:
-        # Smooth timeline aggregation rollover implementation logic
-        subscription.plan_id = plan.id
-        subscription.current_period_end = max(subscription.current_period_end, now_utc) + time_extension
-        subscription.status = SubscriptionState.ACTIVE
-        subscription.grace_period_end = None
-    else:
-        # Complete fallback allocation block initialization logic
-        if not subscription:
-            subscription = UserSubscription(user_id=current_user.id)
-        subscription.plan_id = plan.id
-        subscription.current_period_start = now_utc
-        subscription.current_period_end = now_utc + time_extension
-        subscription.status = SubscriptionState.ACTIVE
-        subscription.grace_period_end = None
-
-    subscription.auto_renew = True
-    db.add(subscription)
-    await db.flush()
-    return subscription
-
-@router.post("/cancel", response_model=UserSubscriptionResponse, status_code=status.HTTP_200_OK)
-async def cancel_subscription_auto_renew(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Disables automated recurring billing parameters while keeping active assets available until the end of the current cycle."""
-    stmt = select(UserSubscription).where(UserSubscription.user_id == current_user.id)
-    execution_context = await db.execute(stmt)
-    subscription = execution_context.scalar_one_or_none()
-
-    if not subscription or subscription.status == SubscriptionState.EXPIRED:
-        raise AppBaseException("No actionable subscription layer context available for cancellation parameters", 400)
-
-    subscription.auto_renew = False
-    subscription.status = SubscriptionState.CANCELED
-    db.add(subscription)
-    await db.flush()
-    return subscription
-
-# --- SYSTEM AUTOMATED LIFECYCLE BACKGROUND CRONS ---
-@router.post("/engine/synchronize-billing", status_code=status.HTTP_200_OK, dependencies=[Depends(RoleChecker([UserRole.ADMIN]))])
+@router.post("/engine/synchronize-billing", dependencies=[Depends(RoleChecker([UserRole.ADMIN]))])
 async def system_cron_synchronize_billing_cycles(db: AsyncSession = Depends(get_db)):
-    """
-    Automated Background Daemon Route.
-
-    Scans past-due cycles, handles grace periods, retry loops, and expires accounts.
-    """
-    now_utc = datetime.now(timezone.utc)
-    DEFAULT_SYSTEM_GRACE_PERIOD_DAYS = 3
-
-    # Pipeline A: Transition expired, non-recurring contracts (CANCELED) directly to EXPIRED state
-    canceled_expiry_stmt = select(UserSubscription).where(
-        and_(
-            UserSubscription.status == SubscriptionState.CANCELED,
-            UserSubscription.current_period_end <= now_utc
-        )
-    )
-    canceled_expired_records = await db.execute(canceled_expiry_stmt)
-    for sub in canceled_expired_records.scalars().all():
-        sub.status = SubscriptionState.EXPIRED
-        db.add(sub)
-
-    # Pipeline B: Transition expired ACTIVE accounts with auto_renew enabled into a GRACE_PERIOD state
-    grace_transition_stmt = select(UserSubscription).where(
-        and_(
-            UserSubscription.status == SubscriptionState.ACTIVE,
-            UserSubscription.current_period_end <= now_utc,
-            UserSubscription.auto_renew == True
-        )
-    )
-    grace_transition_records = await db.execute(grace_transition_stmt)
-    for sub in grace_transition_records.scalars().all():
-        sub.status = SubscriptionState.GRACE_PERIOD
-        sub.grace_period_end = now_utc + timedelta(days=DEFAULT_SYSTEM_GRACE_PERIOD_DAYS)
-        # Dispatch micro-transaction retry requests down to Phase 7 M-Pesa channels here
-        db.add(sub)
-
-    # Pipeline C: Terminate accounts that remain unpaid at the end of their Grace Period
-    grace_expiry_stmt = select(UserSubscription).where(
-        and_(
-            UserSubscription.status == SubscriptionState.GRACE_PERIOD,
-            UserSubscription.grace_period_end <= now_utc
-        )
-    )
-    grace_expired_records = await db.execute(grace_expiry_stmt)
-    for sub in grace_expired_records.scalars().all():
-        sub.status = SubscriptionState.EXPIRED
-        sub.grace_period_end = None
-        db.add(sub)
-
-    await db.flush()
-    return {"status": "success", "message": "Global structural account timeline states synchronized successfully"}
+    """Advance subscriptions past their period end. Call from a scheduler (e.g. hourly)."""
+    return {"status": "success", **(await subscription_service.synchronize_lifecycle(db))}

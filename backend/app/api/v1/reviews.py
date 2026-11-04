@@ -3,11 +3,12 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import and_, desc, func
+from sqlalchemy import and_, desc
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthorizationError
-from app.api.deps import get_current_user, RoleChecker
+from app.api.deps import get_current_user, RoleChecker, is_staff
 from app.models.base import User, UserRole
+from app.models.resource import AcademicResource
 from app.models.review import ResourceReview, ReviewModerationStatus
 from app.schemas.review import ReviewCreateRequest, ReviewUpdateRequest, ReportAbuseRequest, ReviewResponse
 
@@ -23,6 +24,11 @@ async def submit_resource_review(
 ):
     """Submits a star rating and comment text entry block against a distinct educational content node."""
     # Check if a historical feedback row entry already binds these pairs
+    resource_exists = await db.execute(
+        select(AcademicResource.id).where(AcademicResource.id == payload.resource_id, AcademicResource.is_published.is_(True))
+    )
+    if not resource_exists.first():
+        raise AppBaseException("Resource not found", 404)
     stmt = select(ResourceReview).where(
         and_(ResourceReview.user_id == current_user.id, ResourceReview.resource_id == payload.resource_id)
     )
@@ -99,7 +105,7 @@ async def remove_user_review(
         raise AppBaseException("Feedback record allocation path block missing", 404)
 
     # Grant bypass privileges to structural system managers alongside original submission records owners
-    if review.user_id != current_user.id and current_user.role.name != UserRole.ADMIN:
+    if review.user_id != current_user.id and not is_staff(current_user):
         raise AuthorizationError("Insufficient security privilege clearances for execution operations")
 
     await db.delete(review)
@@ -108,6 +114,7 @@ async def remove_user_review(
 async def report_review_abuse(
     review_id: uuid.UUID,
     payload: ReportAbuseRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Flags a comment line block parameter for violating Terms of Service layers, prompting safety triage reviews."""

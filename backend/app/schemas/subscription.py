@@ -45,7 +45,14 @@ class UserSubscriptionResponse(BaseModel):
     current_period_start: datetime
     current_period_end: datetime
     grace_period_end: Optional[datetime]
+    has_access: bool = False
 
 class TriggerSubscriptionRenewal(BaseModel):
     plan_id: uuid.UUID
-    phone_number: str = Field(..., pattern=r"^254(7|1)\d{8}$", description="Safaricom dynamic billing phone context")
+    phone_number: str = Field(..., description="Safaricom number, e.g. 0712345678")
+
+    @field_validator("phone_number")
+    @classmethod
+    def _normalize_phone(cls, value: str) -> str:
+        from app.schemas.payment import normalize_kenyan_msisdn
+        return normalize_kenyan_msisdn(value)
