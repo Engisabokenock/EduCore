@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Download, Star, Bell, ChevronRight, LogOut } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { contentService, notificationService, commerceService } from "@/services/api-service";
+import { homeFor, isStaffRole } from "@/lib/portal";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -19,6 +20,12 @@ export default function DashboardPage() {
     }
     fetchMe();
   }, [isAuthenticated, router, fetchMe]);
+
+  // The learner dashboard is for students and parents only.
+  const staff = isStaffRole(user?.role);
+  useEffect(() => {
+    if (user && staff) router.replace(homeFor(user.role));
+  }, [user, staff, router]);
 
   const { data: downloadsData } = useQuery({
     queryKey: ["my-downloads"],
@@ -44,7 +51,7 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  if (!user) return null;
+  if (!user || staff) return null;
 
   // "canceled" keeps access until the paid period ends; the API computes this.
   const hasActiveSub = !!subscriptionData?.data?.has_access;

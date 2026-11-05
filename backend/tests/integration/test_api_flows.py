@@ -16,7 +16,8 @@ API = "/api/v1"
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 async def register(client, email="learner@example.com", role="student", password="Str0ngPass!"):
-    res = await client.post(f"{API}/auth/register/", json={
+    path = "auth/staff/register" if role in ("teacher", "admin") else "auth/register"
+    res = await client.post(f"{API}/{path}/", json={
         "email": email, "first_name": "Amani", "last_name": "Otieno",
         "password": password, "password_confirm": password, "role": role,
     })
@@ -302,7 +303,7 @@ async def test_admin_stats_and_super_admin_protection(client, db_engine):
 
     await register(client, "admin@example.com")
     await set_role(db_engine, "admin@example.com", "admin")
-    admin = (await client.post(f"{API}/auth/login/", json={"email": "admin@example.com", "password": "Str0ngPass!"})).json()["tokens"]
+    admin = (await client.post(f"{API}/auth/staff/login/", json={"email": "admin@example.com", "password": "Str0ngPass!"})).json()["tokens"]
     stats = await client.get(f"{API}/admin-control-plane/dashboard/stats/", headers=auth(admin))
     assert stats.status_code == 200 and stats.json()["total_resources"] == 2
 
@@ -316,7 +317,7 @@ async def test_admin_stats_and_super_admin_protection(client, db_engine):
     assert takeover.status_code == 403
 
     # Super Admin passes ADMIN-only routes (it used to be locked out).
-    owner_tokens = (await client.post(f"{API}/auth/login/", json={"email": "owner@example.com", "password": "Str0ngPass!"})).json()["tokens"]
+    owner_tokens = (await client.post(f"{API}/auth/staff/login/", json={"email": "owner@example.com", "password": "Str0ngPass!"})).json()["tokens"]
     assert (await client.get(f"{API}/admin-control-plane/dashboard/stats/", headers=auth(owner_tokens))).status_code == 200
     audit = await client.get(f"{API}/security-control-plane/system/audit-trail/", headers=auth(owner_tokens))
     assert audit.status_code == 200

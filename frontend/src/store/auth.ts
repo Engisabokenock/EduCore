@@ -3,7 +3,14 @@
  */
 import { create } from "zustand";
 import api from "@/lib/api";
-import { clearAuthCookies, getAccessToken, getRefreshToken, setAuthCookies } from "@/lib/auth-cookies";
+import {
+  clearAuthCookies,
+  getAccessToken,
+  getRefreshToken,
+  setAuthCookies,
+  setPortalCookie,
+} from "@/lib/auth-cookies";
+import { portalFor } from "@/lib/portal";
 import type { User, AuthTokens } from "@/types";
 
 interface AuthState {
@@ -23,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login(tokens, user) {
     setAuthCookies(tokens);
+    setPortalCookie(portalFor(user.role));
     set({ user, isAuthenticated: true });
   },
 
@@ -45,6 +53,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       const { data } = await api.get<User>("/auth/me/");
+      setPortalCookie(portalFor(data.role));
       set({ user: data, isAuthenticated: true });
     } catch {
       set({ user: null, isAuthenticated: false });

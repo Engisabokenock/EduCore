@@ -25,6 +25,11 @@ class RegistrationRequest(BaseModel):
         return self
 
 
+class StaffRegistrationRequest(RegistrationRequest):
+    """Teacher or administrator application submitted through the staff portal."""
+    role: UserRole = UserRole.TEACHER
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

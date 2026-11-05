@@ -10,7 +10,7 @@ export function AdminHeader({ title }: { title: string }) {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login");
+    router.push("/staff/login");
   };
 
   return (

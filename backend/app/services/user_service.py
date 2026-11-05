@@ -28,10 +28,27 @@ from app.services import activity_service, approval_service
 
 logger = logging.getLogger("educore.accounts")
 
-# Roles a member of the public may pick at sign-up. Teachers and administrators are
-# created as pending applications (see approval_service); the Super Admin role can
-# never be self-assigned.
-SELF_SERVICE_ROLES = {UserRole.STUDENT, UserRole.PARENT, UserRole.TEACHER, UserRole.ADMIN}
+# Two separate sign-in portals. Learners (students and parents) use the public pages;
+# staff (teachers, administrators, the Super Admin) use the staff portal. An account can
+# only sign in, or be created, through its own portal.
+LEARNER_PORTAL = "learner"
+STAFF_PORTAL = "staff"
+PORTAL_ROLES = {
+    LEARNER_PORTAL: frozenset({UserRole.STUDENT.value, UserRole.PARENT.value}),
+    STAFF_PORTAL: frozenset({
+        UserRole.TEACHER.value, UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value, UserRole.SCHOOL_ADMIN.value,
+    }),
+}
+# Roles each portal may create at sign-up. Teachers and administrators are created as
+# pending applications (see approval_service); the Super Admin role is never self-assigned.
+PORTAL_SIGNUP_ROLES = {
+    LEARNER_PORTAL: frozenset({UserRole.STUDENT, UserRole.PARENT}),
+    STAFF_PORTAL: frozenset({UserRole.TEACHER, UserRole.ADMIN}),
+}
+WRONG_PORTAL_MESSAGES = {
+    LEARNER_PORTAL: "This is a staff account. Please sign in through the staff portal.",
+    STAFF_PORTAL: "This is a student or parent account. Please sign in on the main login page.",
+}
 
 
 def normalize_email(email: str) -> str:
@@ -113,11 +130,12 @@ async def register_user(
     full_name: str,
     phone: Optional[str],
     role: UserRole,
+    portal: str = LEARNER_PORTAL,
     user_agent: Optional[str] = None,
     ip: Optional[str] = None,
 ) -> dict:
-    if role not in SELF_SERVICE_ROLES:
-        raise AuthorizationError("That account type cannot be created through public sign-up.")
+    if role not in PORTAL_SIGNUP_ROLES[portal]:
+        raise AuthorizationError("That account type cannot be created here.")
 
     email = normalize_email(email)
     if (await db.execute(select(User.id).where(User.email == email))).scalar_one_or_none():
@@ -161,7 +179,7 @@ async def register_user(
     return {"tokens": tokens, "user": serialize_user(user), "requires_approval": False, "message": None}
 
 
-async def authenticate(db: AsyncSession, *, email: str, password: str,
+async def authenticate(db: AsyncSession, *, email: str, password: str, portal: str = LEARNER_PORTAL,
                        user_agent: Optional[str] = None, ip: Optional[str] = None) -> dict:
     email = normalize_email(email)
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
@@ -177,6 +195,15 @@ async def authenticate(db: AsyncSession, *, email: str, password: str,
             details={"reason": "unknown_account" if user is None else "wrong_password"},
         )
         raise AuthenticationError("Incorrect e-mail or password.")
+
+    if role_value(user) not in PORTAL_ROLES[portal]:
+        await activity_service.record_detached(
+            action="auth.login_blocked", category=ActivityCategory.AUTH,
+            summary=f"{user.email} tried to sign in through the {portal} portal",
+            actor_id=user.id, actor_email=user.email, actor_role=role_value(user), status_code=403,
+            details={"reason": "wrong_portal", "portal": portal},
+        )
+        raise AuthorizationError(WRONG_PORTAL_MESSAGES[portal])
 
     try:
         ensure_can_sign_in(user)

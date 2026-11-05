@@ -25,7 +25,10 @@ api.interceptors.request.use((config) => {
 });
 
 // Endpoints where a 401 means "bad credentials", not "expired session".
-const NO_REFRESH_PATHS = ["/auth/login", "/auth/register", "/auth/token/refresh", "/auth/refresh", "/auth/logout"];
+const NO_REFRESH_PATHS = [
+  "/auth/login", "/auth/register", "/auth/staff/login", "/auth/staff/register",
+  "/auth/token/refresh", "/auth/refresh", "/auth/logout",
+];
 
 // Single in-flight refresh shared by every request that failed with 401. The backend
 // rotates refresh tokens (each one is single-use), so parallel refreshes would revoke
@@ -67,9 +70,14 @@ api.interceptors.response.use(
     });
     const newAccess = await refreshPromise;
     if (!newAccess) {
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        const next = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `/login?redirect=${next}`;
+      if (typeof window !== "undefined") {
+        const path = window.location.pathname;
+        const staffArea = path.startsWith("/admin") || path.startsWith("/teacher") || path.startsWith("/staff");
+        const loginPath = staffArea ? "/staff/login" : "/login";
+        if (!path.startsWith(loginPath)) {
+          const next = encodeURIComponent(path + window.location.search);
+          window.location.href = `${loginPath}?redirect=${next}`;
+        }
       }
       return Promise.reject(error);
     }

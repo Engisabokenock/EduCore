@@ -11,6 +11,7 @@ import { BookOpen, Loader2 } from "lucide-react";
 import { authService } from "@/services/api-service";
 import { getApiErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { safeRedirect } from "@/lib/portal";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -18,12 +19,6 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
-
-/** Only allow same-site relative redirects (prevents open-redirect phishing). */
-function safeRedirect(target: string | null, role: string): string {
-  if (target && target.startsWith("/") && !target.startsWith("//")) return target;
-  return ["admin", "super_admin"].includes(role) ? "/admin" : "/dashboard";
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -59,7 +54,7 @@ export default function LoginPage() {
             <span className="text-2xl font-bold text-gray-900">EduCore</span>
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="text-gray-500 mt-1 text-sm">Log in to your account</p>
+          <p className="text-gray-500 mt-1 text-sm">Log in to your student or parent account</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">

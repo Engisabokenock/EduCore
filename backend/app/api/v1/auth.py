@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.network import get_client_ip, get_user_agent
 from app.models.base import User
 from app.schemas.auth import AuthResultSchema, AuthTokensSchema, RefreshRequest, UserLogin, UserPublicSchema
-from app.schemas.users import RegistrationRequest
+from app.schemas.users import RegistrationRequest, StaffRegistrationRequest
 from app.services import user_service
 
 router = APIRouter(prefix="/auth", tags=["Identity Lifecycle Engine"])
@@ -17,14 +17,45 @@ router = APIRouter(prefix="/auth", tags=["Identity Lifecycle Engine"])
     dependencies=[Depends(auth_rate_limiter)],
 )
 async def register(payload: RegistrationRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """
-    Create an account.
+    """Create a student or parent account and sign the user in."""
+    return await _register(payload, request, db, user_service.LEARNER_PORTAL)
 
-    Students and parents are signed in immediately. Teacher and administrator sign-ups
-    are created as pending applications: ``tokens`` is null, ``requires_approval`` is
-    true and the user can sign in once an Admin (teachers) or the Super Admin
-    (administrators) approves them.
+
+@router.post("/login", response_model=AuthResultSchema, dependencies=[Depends(auth_rate_limiter)])
+async def login(payload: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
+    """Student and parent sign-in. Staff accounts are refused and pointed to the staff portal."""
+    return await user_service.authenticate(
+        db, email=payload.email, password=payload.password, portal=user_service.LEARNER_PORTAL,
+        user_agent=get_user_agent(request), ip=get_client_ip(request),
+    )
+
+
+# ── Staff portal (teachers, administrators, Super Admin) ─────────────────────
+
+@router.post(
+    "/staff/register", response_model=AuthResultSchema, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(auth_rate_limiter)],
+)
+async def staff_register(payload: StaffRegistrationRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
+    Apply for a teacher or administrator account.
+
+    The account is created as pending: ``tokens`` is null and ``requires_approval`` is
+    true. An Admin approves teachers; only the Super Admin approves administrators.
+    """
+    return await _register(payload, request, db, user_service.STAFF_PORTAL)
+
+
+@router.post("/staff/login", response_model=AuthResultSchema, dependencies=[Depends(auth_rate_limiter)])
+async def staff_login(payload: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
+    """Staff sign-in. Student and parent accounts are refused."""
+    return await user_service.authenticate(
+        db, email=payload.email, password=payload.password, portal=user_service.STAFF_PORTAL,
+        user_agent=get_user_agent(request), ip=get_client_ip(request),
+    )
+
+
+async def _register(payload: RegistrationRequest, request: Request, db: AsyncSession, portal: str) -> dict:
     full_name = (payload.full_name or f"{payload.first_name} {payload.last_name}").strip()
     return await user_service.register_user(
         db,
@@ -33,16 +64,9 @@ async def register(payload: RegistrationRequest, request: Request, db: AsyncSess
         full_name=full_name,
         phone=payload.phone,
         role=payload.role,
+        portal=portal,
         user_agent=get_user_agent(request),
         ip=get_client_ip(request),
-    )
-
-
-@router.post("/login", response_model=AuthResultSchema, dependencies=[Depends(auth_rate_limiter)])
-async def login(payload: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
-    return await user_service.authenticate(
-        db, email=payload.email, password=payload.password,
-        user_agent=get_user_agent(request), ip=get_client_ip(request),
     )
 
 

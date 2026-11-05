@@ -10,14 +10,19 @@ pytestmark = [requires_db, pytest.mark.asyncio]
 PASSWORD = "Str0ngPass!"
 
 
-async def login(client, email, password=PASSWORD):
-    return await client.post(f"{API}/auth/login/", json={"email": email, "password": password})
+async def login(client, email, password=PASSWORD, portal="staff"):
+    path = "auth/staff/login" if portal == "staff" else "auth/login"
+    return await client.post(f"{API}/{path}/", json={"email": email, "password": password})
 
 
 async def staff_tokens(client, engine, email, role):
     """Register a student, promote it directly in the database and sign in."""
     await register(client, email)
     await set_role(engine, email, role)
+    if role in ("student", "parent"):
+        res = await login(client, email, portal="learner")
+        assert res.status_code == 200, res.text
+        return res.json()["tokens"]
     res = await login(client, email)
     assert res.status_code == 200, res.text
     return res.json()["tokens"]
@@ -152,7 +157,10 @@ async def test_only_the_platform_owner_is_super_admin(client, db_engine):
     owner = await staff_tokens(client, db_engine, "owner@example.com", "super_admin")
 
     # A super_admin role row on any other account grants nothing.
-    rogue = await staff_tokens(client, db_engine, "rogue@example.com", "super_admin")
+    await register(client, "rogue@example.com")
+    await set_role(db_engine, "rogue@example.com", "super_admin")
+    assert (await login(client, "rogue@example.com")).status_code == 403  # not staff
+    rogue = (await login(client, "rogue@example.com", portal="learner")).json()["tokens"]
     me = await client.get(f"{API}/auth/me/", headers=auth(rogue))
     assert me.json()["role"] == "student"
     assert (await client.get(f"{API}/admin-control-plane/dashboard/stats/", headers=auth(rogue))).status_code == 403
@@ -170,3 +178,28 @@ async def test_only_the_platform_owner_is_super_admin(client, db_engine):
                                 json={"email": "someone-else@example.com"})
     assert rename.status_code == 403
     assert (await client.delete(f"{API}/users/me/", headers=auth(owner))).status_code == 403
+
+
+async def test_staff_and_learners_use_separate_portals(client, db_engine):
+    await staff_tokens(client, db_engine, "admin@example.com", "admin")
+    await register(client, "student@example.com")
+
+    # Staff cannot sign in on the student page, and learners cannot use the staff portal.
+    wrong = await login(client, "admin@example.com", portal="learner")
+    assert wrong.status_code == 403 and "staff portal" in wrong.json()["error"]
+    wrong = await login(client, "student@example.com", portal="staff")
+    assert wrong.status_code == 403 and "main login page" in wrong.json()["error"]
+    assert (await login(client, "student@example.com", portal="learner")).status_code == 200
+
+    # A wrong password never reveals which portal the account belongs to.
+    bad = await login(client, "admin@example.com", "nope", portal="learner")
+    assert bad.status_code == 401
+
+    # Each portal only creates its own account types.
+    for path, role in (("auth/register", "teacher"), ("auth/register", "admin"),
+                       ("auth/staff/register", "student"), ("auth/staff/register", "super_admin")):
+        res = await client.post(f"{API}/{path}/", json={
+            "email": f"{role}-{path.count('staff')}@example.com", "first_name": "A", "last_name": "B",
+            "password": PASSWORD, "role": role,
+        })
+        assert res.status_code == 403, (path, role, res.text)

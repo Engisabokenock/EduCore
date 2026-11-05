@@ -355,3 +355,19 @@ export interface DashboardStats {
   total_resources: number;
   total_schools: number;
 }
+
+/** A resource a teacher submitted through the staff workspace. */
+export interface TeacherSubmission {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  file_extension: string;
+  is_free: boolean;
+  price: number;
+  requires_subscription: boolean;
+  visibility: string;
+  approval_state: "draft" | "pending_review" | "approved" | "rejected" | "published" | string;
+  owner_id: string;
+  created_at: string;
+}

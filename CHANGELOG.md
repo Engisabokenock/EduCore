@@ -3,6 +3,8 @@
 ## [1.2.0] - 2026-11-04 - Account approvals and activity monitoring
 
 ### Added
+- Separate sign-in portals. Students and parents use `/login` and `/register` (API `/auth/login`, `/auth/register`); teachers, administrators and the Super Admin use `/staff/login` and `/staff/register` (API `/auth/staff/login`, `/auth/staff/register`). Each portal refuses the other's accounts, the student pages no longer mention staff roles, and the route middleware keeps each group in its own area.
+- Teacher workspace at `/teacher` showing submitted resources and their review status.
 - Teachers and administrators can sign up, but their accounts stay pending until reviewed. Admins approve teachers; only the Super Admin approves administrators. Pending and rejected accounts cannot sign in.
 - Review queue: `GET/POST /admin-control-plane/approvals` (list, summary, approve, reject with a note shown to the applicant), plus the `/admin/approvals` page.
 - Platform activity log (`activity_logs`): sign-ins, failed sign-ins, registrations, approvals, staff edits, role changes, payments, refunds, downloads and every other state-changing API call, with actor, IP, device and request ID. Super Admin only: `GET /security-control-plane/activity` and `/activity/summary`, plus the `/admin/audit` page.

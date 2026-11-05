@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import type {
   User, AuthResult, AuthTokens, Grade, Subject, Topic,
   Resource, Plan, Subscription, PaginatedResponse,
-  ResourceAccess, CheckoutResponse, PaymentStatus, DownloadLink,
+  ResourceAccess, CheckoutResponse, PaymentStatus, DownloadLink, TeacherSubmission,
 } from "@/types";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -19,6 +19,15 @@ export const authService = {
 
   login: (email: string, password: string) =>
     api.post<{ tokens: AuthTokens; user: User }>("/auth/login/", { email, password }),
+
+  // Staff portal (teachers, administrators, Super Admin)
+  staffLogin: (email: string, password: string) =>
+    api.post<{ tokens: AuthTokens; user: User }>("/auth/staff/login/", { email, password }),
+
+  staffRegister: (data: {
+    email: string; first_name: string; last_name: string;
+    password: string; password_confirm: string; role: "teacher" | "admin"; phone?: string;
+  }) => api.post<AuthResult>("/auth/staff/register/", data),
 
   me: () => api.get<User>("/auth/me/"),
 
@@ -117,4 +126,10 @@ export const notificationService = {
 export const searchService = {
   search: (q: string, category?: string) =>
     api.get("/search/", { params: { q, category } }),
+};
+
+// ── Teacher workspace ────────────────────────────────────────────────────────
+
+export const teacherService = {
+  getMySubmissions: () => api.get<TeacherSubmission[]>("/internal-control-plane/assets/teacher-workspace/"),
 };
