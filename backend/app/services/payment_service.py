@@ -18,7 +18,8 @@ from app.models.notification import NotificationChannel, NotificationEvent, Noti
 from app.models.payment import PaymentTransaction, PremiumSubscription, TransactionStatus
 from app.models.subscription import SubscriptionPlan
 from app.schemas.payment import MpesaCallbackPayload
-from app.services import subscription_service
+from app.models.activity import ActivityCategory
+from app.services import activity_service, subscription_service
 
 logger = logging.getLogger("educore.payments")
 
@@ -72,6 +73,12 @@ async def start_checkout(db: AsyncSession, user: User, plan_id: UUID, phone_numb
     )
     db.add(transaction)
     await db.flush()
+    activity_service.record(
+        db, action="payment.checkout_started", category=ActivityCategory.PAYMENT,
+        summary=f"{user.email} started a KES {amount} M-Pesa checkout for {plan.name}", actor=user,
+        target_type="payment", target_id=transaction.id,
+        details={"plan_id": str(plan.id), "amount": amount, "checkout_request_id": transaction.checkout_request_id},
+    )
     logger.info("STK push %s started for user %s plan %s", transaction.checkout_request_id, user.id, plan.tier)
     return transaction
 
@@ -150,6 +157,13 @@ async def _complete(db: AsyncSession, transaction: PaymentTransaction, receipt: 
     await _grant_purchase(db, transaction)
     user = (await db.execute(select(User).where(User.id == transaction.user_id))).scalar_one_or_none()
     _notify_success(db, transaction, user.email if user else "unknown")
+    activity_service.record(
+        db, action="payment.completed", category=ActivityCategory.PAYMENT,
+        summary=f"Payment of KES {int(transaction.amount)} completed for {user.email if user else transaction.user_id}",
+        actor_id=transaction.user_id, actor_email=user.email if user else None,
+        target_type="payment", target_id=transaction.id,
+        details={"receipt": receipt, "amount": int(transaction.amount)},
+    )
     await db.flush()
 
 
@@ -236,7 +250,7 @@ async def get_checkout_status(db: AsyncSession, user: User, checkout_request_id:
     return transaction
 
 
-async def refund(db: AsyncSession, transaction_id: UUID) -> PaymentTransaction:
+async def refund(db: AsyncSession, transaction_id: UUID, actor: Optional[User] = None) -> PaymentTransaction:
     transaction = (await db.execute(
         select(PaymentTransaction).where(PaymentTransaction.id == transaction_id).with_for_update(of=PaymentTransaction)
     )).scalar_one_or_none()
@@ -246,5 +260,11 @@ async def refund(db: AsyncSession, transaction_id: UUID) -> PaymentTransaction:
         raise AppBaseException("Only completed payments can be refunded.", 400)
     transaction.status = TransactionStatus.REFUNDED.value
     await subscription_service.expire_now(db, transaction.user_id)
+    activity_service.record(
+        db, action="payment.refunded", category=ActivityCategory.PAYMENT,
+        summary=f"Refunded KES {int(transaction.amount)} (receipt {transaction.mpesa_receipt_number or 'n/a'})",
+        actor=actor, target_type="payment", target_id=transaction.id,
+        details={"user_id": str(transaction.user_id)},
+    )
     await db.flush()
     return transaction

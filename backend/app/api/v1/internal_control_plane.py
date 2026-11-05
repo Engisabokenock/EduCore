@@ -9,7 +9,7 @@ from app.core.security import safe_filename, validate_uploaded_file
 from app.api.deps import get_current_active_user, PermissionGuard
 from app.models.base import User, UserRole, DynamicPermission
 from app.models.asset import PortalResource, WorkflowApprovalState
-from app.models.notification import NotificationLog
+from app.services import activity_service
 from app.schemas.asset import ResourceUploadPayload, UnifiedResourceOut, ResourceModerationAction
 from app.storage.r2 import StorageProvider
 
@@ -159,14 +159,5 @@ async def fetch_platform_owner_security_logs(db: AsyncSession = Depends(get_db))
     Provides a clear list of network access trends, transaction logs, and platform
     activities for the Super Admin.
     """
-    stmt = select(NotificationLog).order_by(NotificationLog.sent_at.desc()).limit(150)
-    ctx = await db.execute(stmt)
-    return [
-        {
-            "id": log.id,
-            "event": log.event_type,
-            "recipient": log.recipient_address,
-            "timestamp": log.sent_at,
-        }
-        for log in ctx.scalars().all()
-    ]
+    page = await activity_service.list_activity(db, page=1, page_size=150)
+    return page["items"]

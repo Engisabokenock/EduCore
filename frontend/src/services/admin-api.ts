@@ -5,7 +5,13 @@ import api from "@/lib/api";
 import type {
   AdminUser,
   SystemSettings,
-  AuditLog,
+  AccountApplication,
+  ActivityCategory,
+  ActivityEntry,
+  ActivitySummary,
+  ApplicationCounts,
+  ApprovalStatus,
+  Paginated,
   School,
   Transaction,
   UserSubscription,
@@ -63,5 +69,30 @@ export const adminApi = {
   overrideUserRole: (userId: string, payload: { email?: string; role?: string; is_active?: boolean; full_name?: string }) =>
     api.patch<AdminUser>(`/security-control-plane/users/${userId}/override/`, payload),
 
-  getAuditLogs: () => api.get<AuditLog[]>("/security-control-plane/system/audit-trail/"),
+  // Account applications (teachers: admins review; admins: Super Admin reviews)
+  getApplications: (params: { status?: ApprovalStatus; role?: "teacher" | "admin"; page?: number; page_size?: number }) =>
+    api.get<Paginated<AccountApplication>>("/admin-control-plane/approvals/", { params }),
+
+  getApplicationCounts: () => api.get<ApplicationCounts>("/admin-control-plane/approvals/summary/"),
+
+  approveApplication: (userId: string, note?: string) =>
+    api.post<AccountApplication>(`/admin-control-plane/approvals/${userId}/approve/`, { note: note || null }),
+
+  rejectApplication: (userId: string, note?: string) =>
+    api.post<AccountApplication>(`/admin-control-plane/approvals/${userId}/reject/`, { note: note || null }),
+
+  // Platform activity (Super Admin only)
+  getActivity: (params: {
+    category?: ActivityCategory;
+    action?: string;
+    actor_id?: string;
+    search?: string;
+    since?: string;
+    until?: string;
+    page?: number;
+    page_size?: number;
+  }) => api.get<Paginated<ActivityEntry>>("/security-control-plane/activity/", { params }),
+
+  getActivitySummary: (hours = 24) =>
+    api.get<ActivitySummary>("/security-control-plane/activity/summary/", { params: { hours } }),
 };

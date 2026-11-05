@@ -73,8 +73,11 @@ async def get_my_transaction_history(current_user: User = Depends(get_current_us
     return (await db.execute(stmt)).scalars().all()
 
 
-@router.post("/transactions/{transaction_id}/refund", response_model=TransactionOut,
-             dependencies=[Depends(RoleChecker([UserRole.ADMIN]))])
-async def issue_transaction_refund(transaction_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+@router.post("/transactions/{transaction_id}/refund", response_model=TransactionOut)
+async def issue_transaction_refund(
+    transaction_id: uuid.UUID,
+    current_user: User = Depends(RoleChecker([UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db),
+):
     """Mark a completed payment refunded and revoke the access it bought."""
-    return await payment_service.refund(db, transaction_id)
+    return await payment_service.refund(db, transaction_id, actor=current_user)

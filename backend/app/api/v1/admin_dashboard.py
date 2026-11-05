@@ -10,9 +10,10 @@ from app.core.cache import CacheManager
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.api.deps import RoleChecker, PermissionGuard, has_role
-from app.services.user_service import normalize_email, serialize_user
-from app.models.base import User, UserRole, Profile, Role, DynamicPermission
-from app.models.notification import NotificationLog
+from app.services import activity_service
+from app.services.user_service import normalize_email, revoke_all_sessions, serialize_user
+from app.models.activity import ActivityCategory
+from app.models.base import AccountApprovalStatus, User, UserRole, Profile, Role, DynamicPermission
 from app.models.resource import AcademicResource
 from app.models.payment import PaymentTransaction, TransactionStatus
 from app.models.subscription import UserSubscription, SubscriptionState
@@ -33,15 +34,37 @@ router = APIRouter(prefix="/admin-control-plane", tags=["Master Administrative O
 super_admin_clearance_guard = Depends(RoleChecker([UserRole.ADMIN]))
 
 
+_PRIVILEGED_ROLES = (UserRole.ADMIN, UserRole.SUPER_ADMIN)
+
+
 def _guard_platform_owner(actor: User, target: User) -> None:
-    """Only the Super Admin may modify a Super Admin account (prevents takeover via e-mail change)."""
-    if has_role(target, [UserRole.SUPER_ADMIN]) and not has_role(actor, [UserRole.SUPER_ADMIN]):
+    """
+    Only the Super Admin may modify an administrator or Super Admin account.
+
+    Prevents an admin from taking over the owner account (e-mail change) and from
+    managing fellow administrators, whose accounts the Super Admin alone approves.
+    """
+    if has_role(actor, [UserRole.SUPER_ADMIN]):
+        return
+    if has_role(target, [UserRole.SUPER_ADMIN]):
         raise AuthorizationError("Only the platform owner can modify a Super Admin account.")
+    if has_role(target, [UserRole.ADMIN]) and target.id != actor.id:
+        raise AuthorizationError("Only the Super Admin can modify administrator accounts.")
 
 
-async def _apply_user_update(db: AsyncSession, target: User, payload: AdminUserUpdatePayload) -> None:
-    if payload.is_active is not None:
+def _guard_role_grant(actor: User, role: Optional[UserRole]) -> None:
+    if role in _PRIVILEGED_ROLES and not has_role(actor, [UserRole.SUPER_ADMIN]):
+        raise AuthorizationError("Only the Super Admin can grant administrator access.")
+
+
+async def _apply_user_update(db: AsyncSession, actor: User, target: User, payload: AdminUserUpdatePayload) -> dict:
+    """Apply profile/status changes and return what changed (for the activity log)."""
+    changes: dict = {}
+    if payload.is_active is not None and payload.is_active != target.is_active:
+        changes["is_active"] = [target.is_active, payload.is_active]
         target.is_active = payload.is_active
+        if not payload.is_active:
+            await revoke_all_sessions(db, target.id)
     if payload.email:
         email = normalize_email(payload.email)
         if email != target.email:
@@ -50,9 +73,18 @@ async def _apply_user_update(db: AsyncSession, target: User, payload: AdminUserU
             )).scalar_one_or_none()
             if clash:
                 raise ConflictError("Another account already uses that e-mail address.")
+            changes["email"] = [target.email, email]
             target.email = email
-    if payload.full_name and target.profile:
+    if payload.full_name and target.profile and payload.full_name != target.profile.full_name:
+        changes["full_name"] = [target.profile.full_name, payload.full_name]
         target.profile.full_name = payload.full_name
+    if changes:
+        activity_service.record(
+            db, action="admin.user_updated", category=ActivityCategory.ADMIN,
+            summary=f"Updated {target.email}: {', '.join(changes)}", actor=actor,
+            target_type="user", target_id=target.id, details={"changes": changes},
+        )
+    return changes
 
 
 # --- SECTION 0: DASHBOARD SUMMARY ---
@@ -105,6 +137,8 @@ async def administrative_user_index_lookup(payload: AdminUserSearchPayload, db: 
         conditions.append(User.role.has(Role.name == payload.role.value))
     if payload.is_active is not None:
         conditions.append(User.is_active == payload.is_active)
+    if payload.approval_status is not None:
+        conditions.append(User.approval_status == payload.approval_status)
     if payload.search_term:
         term = payload.search_term.strip().lower()
         conditions.append(
@@ -135,7 +169,7 @@ async def administrative_override_user_profile(
     _guard_platform_owner(current_user, user)
     if user.id == current_user.id and payload.is_active is False:
         raise AuthorizationError("You cannot deactivate your own account.")
-    await _apply_user_update(db, user, payload)
+    await _apply_user_update(db, current_user, user, payload)
     await db.flush()
     return serialize_user(user)
 
@@ -271,19 +305,30 @@ async def modify_user_role_assignment(
         raise HTTPException(status_code=404, detail="User not found")
 
     _guard_platform_owner(current_user, target_user)
-    if payload.role == UserRole.SUPER_ADMIN and not has_role(current_user, [UserRole.SUPER_ADMIN]):
-        raise AuthorizationError("Only the platform owner can assign the Super Admin role.")
+    _guard_role_grant(current_user, payload.role)
     if target_user.id == current_user.id and payload.role and payload.role.value != serialize_user(current_user)["role"]:
         raise AuthorizationError("You cannot change your own role.")
 
-    if payload.role:
+    if payload.role and payload.role.value != serialize_user(target_user)["role"]:
         target_role = (await db.execute(select(Role).where(Role.name == payload.role.value))).scalar_one_or_none()
         if not target_role:
             raise HTTPException(status_code=400, detail="Requested role does not exist")
+        previous_role = serialize_user(target_user)["role"]
         target_user.role_id = target_role.id
         target_user.role = target_role
+        # A role assigned directly by an authorised reviewer counts as an approval.
+        target_user.approval_status = AccountApprovalStatus.APPROVED
+        target_user.reviewed_by_id = current_user.id
+        target_user.reviewed_at = datetime.now(timezone.utc)
+        await revoke_all_sessions(db, target_user.id)
+        activity_service.record(
+            db, action="admin.role_changed", category=ActivityCategory.ADMIN,
+            summary=f"Changed {target_user.email} from {previous_role} to {payload.role.value}",
+            actor=current_user, target_type="user", target_id=target_user.id,
+            details={"from": previous_role, "to": payload.role.value},
+        )
 
-    await _apply_user_update(db, target_user, payload)
+    await _apply_user_update(db, current_user, target_user, payload)
     await db.flush()
     return serialize_user(target_user)
 
@@ -293,14 +338,10 @@ async def view_infrastructure_security_audit_logs(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Infrastructure Logging Core Pathway.
+    The 100 most recent platform activity entries.
 
-    Restricted to authorized system operators. Provides access to connection logs,
-    metadata strings, and transaction traces.
+    Kept for older clients; ``GET /security-control-plane/activity`` adds filtering and
+    pagination.
     """
-    stmt = select(NotificationLog).order_by(NotificationLog.sent_at.desc()).limit(100)
-    res = await db.execute(stmt)
-    return [
-        {"id": log.id, "event": log.event_type.value, "recipient": log.recipient_address, "timestamp": log.sent_at}
-        for log in res.scalars().all()
-    ]
+    page = await activity_service.list_activity(db, page=1, page_size=100)
+    return page["items"]

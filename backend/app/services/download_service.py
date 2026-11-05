@@ -15,7 +15,8 @@ from app.core.security import safe_filename
 from app.models.base import User
 from app.models.resource import AcademicResource
 from app.models.tracking import DownloadLog
-from app.services import subscription_service
+from app.models.activity import ActivityCategory
+from app.services import activity_service, subscription_service
 from app.storage.r2 import StorageProvider
 
 logger = logging.getLogger("educore.downloads")
@@ -83,5 +84,11 @@ async def authorize_and_record(db: AsyncSession, resource: AcademicResource, use
     )
     await db.flush()
 
+    activity_service.record(
+        db, action="download.granted", category=ActivityCategory.DOWNLOAD,
+        summary=f"{user.email if user else 'Guest ' + ip} downloaded '{resource.title[:200]}'",
+        actor=user, target_type="resource", target_id=resource.id,
+        details={"premium": bool(resource.is_premium), "slug": resource.slug},
+    )
     url = await StorageProvider().download_url(resource.pdf_url, filename=f"{safe_filename(resource.slug)}.pdf")
     return {"url": url, "expires_in": settings.PRESIGNED_URL_TTL_SECONDS}

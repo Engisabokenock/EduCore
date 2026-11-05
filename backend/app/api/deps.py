@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthenticationError, AuthorizationError
 from app.core.network import get_client_ip
 from app.core.security import verify_jwt_token
-from app.models.base import DynamicPermission, User, UserRole
+from app.models.base import AccountApprovalStatus, DynamicPermission, User, UserRole
 
 logger = logging.getLogger("educore.deps")
 
@@ -32,6 +32,9 @@ async def _load_active_user(token: str, db: AsyncSession) -> User:
         raise AuthenticationError("Your account could not be found. Please log in again.")
     if not user.is_active:
         raise AuthorizationError("Your account has been deactivated. Contact support for help.")
+    if user.approval_status != AccountApprovalStatus.APPROVED:
+        # Tokens issued before an approval was revoked must stop working too.
+        raise AuthorizationError("Your account is not approved yet.")
     return user
 
 

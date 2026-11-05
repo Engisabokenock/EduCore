@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0] - 2026-11-04 - Account approvals and activity monitoring
+
+### Added
+- Teachers and administrators can sign up, but their accounts stay pending until reviewed. Admins approve teachers; only the Super Admin approves administrators. Pending and rejected accounts cannot sign in.
+- Review queue: `GET/POST /admin-control-plane/approvals` (list, summary, approve, reject with a note shown to the applicant), plus the `/admin/approvals` page.
+- Platform activity log (`activity_logs`): sign-ins, failed sign-ins, registrations, approvals, staff edits, role changes, payments, refunds, downloads and every other state-changing API call, with actor, IP, device and request ID. Super Admin only: `GET /security-control-plane/activity` and `/activity/summary`, plus the `/admin/audit` page.
+- `scripts/create_staff_account.py` provisions pre-approved Super Admin / Admin accounts from the server (single Super Admin enforced).
+- Migration `20261104120000_account_approvals_activity_log`.
+
+### Security
+- Only the Super Admin can grant the admin role or edit administrator accounts.
+- Role changes and deactivation revoke the user's sessions.
+
+### Fixed
+- The admin shell rendered twice (route layout and page both wrapped it).
+- The old audit-trail endpoints returned notification e-mails instead of activity.
+
 ## [1.1.0] — 2026-11-04 — Platform hardening
 
 ### Security

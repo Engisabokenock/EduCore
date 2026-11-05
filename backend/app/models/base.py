@@ -26,6 +26,16 @@ class UserRole(str, Enum):
     PARENT = "parent"            # External Monitor - Scoped Child Traversal Maps
     STUDENT = "student"          # Standard Client Consumer - Read Asset Vectors Only
 
+class AccountApprovalStatus(str, Enum):
+    """
+    Review state of an account. Students and parents are approved on sign-up;
+    teachers wait for an Admin and administrators wait for the Super Admin.
+    """
+    APPROVED = "approved"
+    PENDING = "pending"
+    REJECTED = "rejected"
+
+
 class DynamicPermission(str, Enum):
     # Core Infrastructure Privilege Matrix Boundaries (Reserved for Super Admin)
     MANAGE_ADMINS = "manage_admins"
@@ -85,6 +95,18 @@ class User(Base):
     reset_token: Mapped[Optional[str]] = mapped_column(String(128), index=True, nullable=True)
     reset_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Staff-reviewed sign-ups (teachers and administrators). Existing accounts default
+    # to approved; a pending or rejected account cannot sign in.
+    approval_status: Mapped[AccountApprovalStatus] = mapped_column(
+        pg_enum(AccountApprovalStatus), default=AccountApprovalStatus.APPROVED,
+        server_default=AccountApprovalStatus.APPROVED.value, nullable=False, index=True,
+    )
+    reviewed_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Relationships
     role: Mapped[Role] = relationship(lazy="selectin")

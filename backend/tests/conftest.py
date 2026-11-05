@@ -34,7 +34,7 @@ requires_db = pytest.mark.skipif(not TEST_DATABASE_URL, reason="TEST_DATABASE_UR
 
 # Tables wiped between tests. Roles/permissions (seeded by migration) are kept.
 _TRUNCATE = (
-    "resource_reviews, download_logs, resource_tag_associations, content_tags, academic_resources, "
+    "activity_logs, resource_reviews, download_logs, resource_tag_associations, content_tags, academic_resources, "
     "notification_logs, notification_preferences, payment_transactions, premium_subscriptions, "
     "user_subscriptions, subscription_plans, user_sessions, profiles, portal_resources, "
     "assignment_submissions, class_assignments, classroom_enrollments, classrooms, schools, "

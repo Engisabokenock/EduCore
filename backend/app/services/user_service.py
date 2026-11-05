@@ -21,13 +21,16 @@ from app.core.security import (
     verify_jwt_token,
     verify_password,
 )
-from app.models.base import Profile, Role, User, UserRole, UserSession
+from app.models.activity import ActivityCategory
+from app.models.base import AccountApprovalStatus, Profile, Role, User, UserRole, UserSession
+from app.services import activity_service, approval_service
 
 logger = logging.getLogger("educore.accounts")
 
-# Roles a member of the public may pick at sign-up. Staff roles are only ever
-# granted by an administrator through the security control plane.
-SELF_SERVICE_ROLES = {UserRole.STUDENT, UserRole.TEACHER, UserRole.PARENT}
+# Roles a member of the public may pick at sign-up. Teachers and administrators are
+# created as pending applications (see approval_service); the Super Admin role can
+# never be self-assigned.
+SELF_SERVICE_ROLES = {UserRole.STUDENT, UserRole.PARENT, UserRole.TEACHER, UserRole.ADMIN}
 
 
 def normalize_email(email: str) -> str:
@@ -58,10 +61,28 @@ def serialize_user(user: User) -> dict:
         "role": role_value(user),
         "is_active": user.is_active,
         "is_verified": bool(getattr(user, "is_verified", False)),
+        "approval_status": _approval_value(user),
         "date_joined": user.created_at.isoformat() if user.created_at else "",
         "last_login_at": user.last_login_at.isoformat() if getattr(user, "last_login_at", None) else None,
         "profile": None,
     }
+
+
+def _approval_value(user: User) -> str:
+    status = getattr(user, "approval_status", None) or AccountApprovalStatus.APPROVED
+    return status.value if isinstance(status, AccountApprovalStatus) else str(status)
+
+
+def ensure_can_sign_in(user: User) -> None:
+    """Raise unless the account is active and approved."""
+    if not user.is_active:
+        raise AuthorizationError("Your account has been deactivated. Contact support for help.")
+    status = _approval_value(user)
+    if status == AccountApprovalStatus.PENDING.value:
+        raise AuthorizationError(approval_service.pending_message(UserRole(role_value(user))))
+    if status == AccountApprovalStatus.REJECTED.value:
+        note = f" Reason: {user.review_note}" if getattr(user, "review_note", None) else ""
+        raise AuthorizationError(f"Your account application was not approved.{note}")
 
 
 async def get_role(db: AsyncSession, role: UserRole) -> Role:
@@ -105,6 +126,7 @@ async def register_user(
     if (await db.execute(select(User.id).where(User.email == email))).scalar_one_or_none():
         raise ConflictError("An account with this e-mail address already exists. Try logging in instead.")
 
+    needs_review = approval_service.requires_approval(role)
     role_entity = await get_role(db, role)
     verification_token = generate_token()
     user = User(
@@ -113,34 +135,72 @@ async def register_user(
         role_id=role_entity.id,
         verification_token=hash_token(verification_token),
         is_verified=False,
+        approval_status=AccountApprovalStatus.PENDING if needs_review else AccountApprovalStatus.APPROVED,
     )
     user.role = role_entity
     user.profile = Profile(full_name=full_name[:100], phone_number=phone or None, metadata_fields={})
     db.add(user)
     await db.flush()
 
-    tokens = await _open_session(db, user, user_agent, ip)
     await AsyncEmailEngine.send_verification_email(user.email, verification_token)
-    logger.info("Registered user %s with role %s", user.id, role.value)
-    return {"tokens": tokens, "user": serialize_user(user)}
+    logger.info("Registered user %s with role %s (pending=%s)", user.id, role.value, needs_review)
+
+    if needs_review:
+        # No session until a reviewer approves the account.
+        await approval_service.on_application_submitted(db, user, role)
+        return {
+            "tokens": None,
+            "user": serialize_user(user),
+            "requires_approval": True,
+            "message": approval_service.pending_message(role),
+        }
+
+    activity_service.record(
+        db, action="account.registered", category=ActivityCategory.ACCOUNT,
+        summary=f"{user.email} registered as {role.value}", actor=user,
+        target_type="user", target_id=user.id,
+    )
+    tokens = await _open_session(db, user, user_agent, ip)
+    return {"tokens": tokens, "user": serialize_user(user), "requires_approval": False, "message": None}
 
 
 async def authenticate(db: AsyncSession, *, email: str, password: str,
                        user_agent: Optional[str] = None, ip: Optional[str] = None) -> dict:
-    user = (await db.execute(select(User).where(User.email == normalize_email(email)))).scalar_one_or_none()
-    if user is None:
-        burn_password_check(password)
+    email = normalize_email(email)
+    user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if user is None or not verify_password(password, user.hashed_password):
+        if user is None:
+            burn_password_check(password)
+        # Written in its own transaction: the request rolls back when we raise.
+        await activity_service.record_detached(
+            action="auth.login_failed", category=ActivityCategory.AUTH,
+            summary=f"Failed sign-in for {email[:200]}",
+            actor_id=user.id if user else None, actor_email=email[:255],
+            actor_role=role_value(user) if user else None, status_code=401,
+            details={"reason": "unknown_account" if user is None else "wrong_password"},
+        )
         raise AuthenticationError("Incorrect e-mail or password.")
-    if not verify_password(password, user.hashed_password):
-        raise AuthenticationError("Incorrect e-mail or password.")
-    if not user.is_active:
-        raise AuthorizationError("Your account has been deactivated. Contact support for help.")
+
+    try:
+        ensure_can_sign_in(user)
+    except AuthorizationError:
+        await activity_service.record_detached(
+            action="auth.login_blocked", category=ActivityCategory.AUTH,
+            summary=f"Blocked sign-in for {user.email} ({_approval_value(user)}, active={user.is_active})",
+            actor_id=user.id, actor_email=user.email, actor_role=role_value(user), status_code=403,
+            details={"approval_status": _approval_value(user), "is_active": user.is_active},
+        )
+        raise
 
     if password_needs_rehash(user.hashed_password):
         user.hashed_password = hash_password(password)
     user.last_login_at = datetime.now(timezone.utc)
 
     tokens = await _open_session(db, user, user_agent, ip)
+    activity_service.record(
+        db, action="auth.login", category=ActivityCategory.AUTH,
+        summary=f"{user.email} signed in", actor=user, target_type="user", target_id=user.id,
+    )
     return {"tokens": tokens, "user": serialize_user(user)}
 
 
@@ -165,7 +225,7 @@ async def rotate_refresh_token(db: AsyncSession, refresh_token: str) -> dict:
         raise AuthenticationError("Your session has expired. Please log in again.")
 
     user = (await db.execute(select(User).where(User.id == UUID(payload["sub"])))).scalar_one_or_none()
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or _approval_value(user) != AccountApprovalStatus.APPROVED.value:
         raise AuthenticationError("Your account is no longer active.")
 
     session.is_revoked = True
@@ -173,9 +233,18 @@ async def rotate_refresh_token(db: AsyncSession, refresh_token: str) -> dict:
 
 
 async def logout(db: AsyncSession, refresh_token: str) -> None:
-    await db.execute(
-        update(UserSession).where(UserSession.refresh_token == refresh_token).values(is_revoked=True)
-    )
+    session = (await db.execute(
+        select(UserSession).where(UserSession.refresh_token == refresh_token)
+    )).scalar_one_or_none()
+    if session is None:
+        return
+    session.is_revoked = True
+    user = (await db.execute(select(User).where(User.id == session.user_id))).scalar_one_or_none()
+    if user is not None:
+        activity_service.record(
+            db, action="auth.logout", category=ActivityCategory.AUTH,
+            summary=f"{user.email} signed out", actor=user,
+        )
 
 
 async def revoke_all_sessions(db: AsyncSession, user_id: UUID) -> None:
@@ -212,6 +281,10 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> Non
     user.reset_token = None
     user.reset_token_expires = None
     await revoke_all_sessions(db, user.id)
+    activity_service.record(
+        db, action="auth.password_reset", category=ActivityCategory.AUTH,
+        summary=f"{user.email} reset their password", actor=user,
+    )
 
 
 async def verify_email(db: AsyncSession, token: str) -> None:
@@ -231,6 +304,10 @@ async def change_password(db: AsyncSession, user: User, current_password: str, n
         raise AppBaseException("Choose a new password that differs from the current one.", 400)
     user.hashed_password = hash_password(new_password)
     await revoke_all_sessions(db, user.id)
+    activity_service.record(
+        db, action="auth.password_changed", category=ActivityCategory.AUTH,
+        summary=f"{user.email} changed their password", actor=user,
+    )
 
 
 async def deactivate_account(db: AsyncSession, user: User) -> None:
@@ -242,6 +319,11 @@ async def deactivate_account(db: AsyncSession, user: User) -> None:
     personal data anonymised, which honours erasure requests under the Kenya Data
     Protection Act while keeping the ledger intact.
     """
+    activity_service.record(
+        db, action="account.deleted", category=ActivityCategory.ACCOUNT,
+        summary=f"{user.email} deleted their account", actor=user,
+        target_type="user", target_id=user.id,
+    )
     user.is_active = False
     user.email = f"deleted-{user.id.hex}@deleted.educore.invalid"
     user.hashed_password = hash_password(generate_token())

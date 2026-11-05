@@ -1,13 +1,14 @@
 import uuid
 from typing import Optional, List
 from pydantic import BaseModel, Field, EmailStr
-from app.models.base import UserRole
+from app.models.base import AccountApprovalStatus, UserRole
 from app.models.payment import TransactionStatus
 
 # --- USER CONTROL CONTROL GRID ---
 class AdminUserSearchPayload(BaseModel):
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
+    approval_status: Optional[AccountApprovalStatus] = None
     search_term: Optional[str] = Field(None, min_length=2, description="Targets email address match or full name text fields")
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)

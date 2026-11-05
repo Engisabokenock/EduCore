@@ -13,6 +13,8 @@ import {
   Star,
   ChevronLeft,
   Menu,
+  UserCheck,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@/types";
@@ -20,6 +22,7 @@ import { useState } from "react";
 
 const adminNavItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/admin/approvals", label: "Approvals", icon: UserCheck },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/resources", label: "Resources", icon: BookOpen },
   { href: "/admin/reviews", label: "Reviews", icon: Star },
@@ -31,7 +34,7 @@ const adminNavItems = [
 const superAdminNavItems = [
   ...adminNavItems,
   { href: "/admin/super", label: "Super Admin", icon: Shield, exact: true },
-  { href: "/admin/audit", label: "Audit Logs", icon: Shield },
+  { href: "/admin/audit", label: "Activity Log", icon: Activity },
 ];
 
 export function AdminSidebar({ role }: { role: UserRole }) {

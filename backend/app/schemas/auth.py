@@ -31,14 +31,18 @@ class UserPublicSchema(BaseModel):
     role: UserRole
     is_active: bool = True
     is_verified: bool = False
+    approval_status: str = "approved"
     date_joined: str = ""
     last_login_at: Optional[str] = None
     profile: Optional[dict] = None
 
 
 class AuthResultSchema(BaseModel):
-    tokens: AuthTokensSchema
+    # ``tokens`` is null when the account needs approval first (teachers and admins).
+    tokens: Optional[AuthTokensSchema] = None
     user: UserPublicSchema
+    requires_approval: bool = False
+    message: Optional[str] = None
 
 
 class RefreshRequest(BaseModel):

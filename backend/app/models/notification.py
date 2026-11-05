@@ -19,6 +19,7 @@ class NotificationEvent(str, Enum):
     SUBSCRIPTION_EXPIRY = "subscription_expiry"
     PASSWORD_RESET = "password_reset"
     WELCOME = "welcome"
+    ACCOUNT_REVIEW = "account_review"
 
 class NotificationPreference(Base):
     __tablename__ = "notification_preferences"

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Users, BookOpen, Star, DollarSign, School, Settings, Shield } from "lucide-react";
+import { Users, BookOpen, Star, DollarSign, School, Settings, UserCheck } from "lucide-react";
 
 const adminActions = [
+  { href: "/admin/approvals", label: "Approve Teachers", desc: "Review teacher sign-ups waiting for approval.", icon: UserCheck },
   { href: "/admin/users", label: "Manage Users", desc: "Search, update, and manage user accounts.", icon: Users },
   { href: "/admin/resources", label: "Manage Resources", desc: "Bulk publish, archive, or delete resources.", icon: BookOpen },
   { href: "/admin/reviews", label: "Moderate Reviews", desc: "Approve or reject pending resource reviews.", icon: Star },

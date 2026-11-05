@@ -17,7 +17,14 @@ router = APIRouter(prefix="/auth", tags=["Identity Lifecycle Engine"])
     dependencies=[Depends(auth_rate_limiter)],
 )
 async def register(payload: RegistrationRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Create a student, teacher or parent account and sign the user in."""
+    """
+    Create an account.
+
+    Students and parents are signed in immediately. Teacher and administrator sign-ups
+    are created as pending applications: ``tokens`` is null, ``requires_approval`` is
+    true and the user can sign in once an Admin (teachers) or the Super Admin
+    (administrators) approves them.
+    """
     full_name = (payload.full_name or f"{payload.first_name} {payload.last_name}").strip()
     return await user_service.register_user(
         db,

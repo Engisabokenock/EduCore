@@ -28,7 +28,9 @@ from app.core.middleware import (
     TrailingSlashMiddleware,
 )
 
+from app.api.v1.activity import router as activity_router
 from app.api.v1.admin_dashboard import router as admin_router, security_router
+from app.api.v1.approvals import router as approvals_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cbc import router as cbc_router
@@ -91,7 +93,7 @@ for router in (
     auth_router, users_router, cbc_router, content_router, search_router, downloads_router,
     payments_router, subscriptions_router, notifications_router, reviews_router,
     analytics_router, schools_router, admin_router, security_router, portal_assets_router,
-    internal_control_plane_router,
+    internal_control_plane_router, approvals_router, activity_router,
 ):
     app.include_router(router, prefix=API_PREFIX)
 

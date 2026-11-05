@@ -4,7 +4,7 @@
  */
 import api from "@/lib/api";
 import type {
-  User, AuthTokens, Grade, Subject, Topic,
+  User, AuthResult, AuthTokens, Grade, Subject, Topic,
   Resource, Plan, Subscription, PaginatedResponse,
   ResourceAccess, CheckoutResponse, PaymentStatus, DownloadLink,
 } from "@/types";
@@ -15,7 +15,7 @@ export const authService = {
   register: (data: {
     email: string; first_name: string; last_name: string;
     password: string; password_confirm: string; role?: string; phone?: string;
-  }) => api.post<{ tokens: AuthTokens; user: User }>("/auth/register/", data),
+  }) => api.post<AuthResult>("/auth/register/", data),
 
   login: (email: string, password: string) =>
     api.post<{ tokens: AuthTokens; user: User }>("/auth/login/", { email, password }),

@@ -6,6 +6,7 @@ string-based relationships ("User", "SubscriptionPlan", ...) always resolve and
 Alembic sees the complete schema.
 """
 from app.models import (  # noqa: F401
+    activity,
     analytics,
     asset,
     base,

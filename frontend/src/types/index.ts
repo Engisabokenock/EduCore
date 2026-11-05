@@ -4,6 +4,8 @@
 
 export type UserRole = "super_admin" | "admin" | "school_admin" | "teacher" | "student" | "parent";
 
+export type ApprovalStatus = "approved" | "pending" | "rejected";
+
 export interface User {
   id: string;
   email: string;
@@ -14,6 +16,7 @@ export interface User {
   role: UserRole;
   is_verified: boolean;
   is_active?: boolean;
+  approval_status?: ApprovalStatus;
   avatar_url?: string | null;
   date_joined: string;
   last_login_at?: string | null;
@@ -33,6 +36,14 @@ export interface Profile {
 export interface AuthTokens {
   access: string;
   refresh: string;
+}
+
+/** Register/login response. `tokens` is null while a teacher/admin account awaits approval. */
+export interface AuthResult {
+  tokens: AuthTokens | null;
+  user: User;
+  requires_approval?: boolean;
+  message?: string | null;
 }
 
 export interface Grade {
@@ -229,11 +240,63 @@ export interface SystemSettings {
   last_recalculation_timestamp: string;
 }
 
-export interface AuditLog {
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AccountApplication extends User {
+  approval_status: ApprovalStatus;
+  reviewed_at: string | null;
+  reviewed_by_id: string | null;
+  review_note: string | null;
+}
+
+export interface ApplicationCounts {
+  total: number;
+  by_role: Partial<Record<UserRole, number>>;
+}
+
+export type ActivityCategory =
+  | "auth"
+  | "account"
+  | "approval"
+  | "admin"
+  | "payment"
+  | "download"
+  | "content"
+  | "request";
+
+export interface ActivityEntry {
   id: string;
-  event: string;
-  recipient: string;
-  timestamp: string;
+  occurred_at: string;
+  actor_id: string | null;
+  actor_email: string | null;
+  actor_name: string | null;
+  actor_role: string | null;
+  category: ActivityCategory;
+  action: string;
+  summary: string;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, unknown>;
+  ip_address: string | null;
+  user_agent: string | null;
+  request_id: string | null;
+  http_method: string | null;
+  path: string | null;
+  status_code: number | null;
+}
+
+export interface ActivitySummary {
+  window_hours: number;
+  total_events: number;
+  by_category: Partial<Record<ActivityCategory, number>>;
+  failed_logins: number;
+  active_users: number;
+  pending_approvals: number;
 }
 
 export interface School {

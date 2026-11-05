@@ -1,4 +1,4 @@
-import AdminLayout from "@/app/admin/layout";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { Suspense } from "react";
 import { AdminStats } from "./AdminStats";
 import { AdminUsersTable } from "./AdminUsersTable";

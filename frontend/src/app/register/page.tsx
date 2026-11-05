@@ -7,17 +7,22 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { BookOpen, Loader2 } from "lucide-react";
+import { BookOpen, Clock, Loader2 } from "lucide-react";
 import { authService } from "@/services/api-service";
 import { getApiErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+
+const ROLE_HINTS: Record<string, string> = {
+  teacher: "Teacher accounts are activated after an administrator approves them.",
+  admin: "Administrator accounts are activated after the Super Admin approves them.",
+};
 
 const schema = z.object({
   first_name: z.string().min(2, "First name is required"),
   last_name: z.string().min(2, "Last name is required"),
   email: z.string().email("Enter a valid email"),
   phone: z.string().optional(),
-  role: z.enum(["student", "teacher", "parent"]),
+  role: z.enum(["student", "parent", "teacher", "admin"]),
   password: z.string().min(8, "Password must be at least 8 characters"),
   password_confirm: z.string(),
 }).refine((d) => d.password === d.password_confirm, {
@@ -31,20 +36,28 @@ export default function RegisterPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const [loading, setLoading] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { role: "student" },
   });
+  const selectedRole = watch("role");
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
       const res = await authService.register(data);
+      if (!res.data.tokens) {
+        // Teacher/admin applications: no session until a reviewer approves them.
+        setPendingMessage(res.data.message ?? "Your account is waiting for approval.");
+        return;
+      }
       login(res.data.tokens, res.data.user);
       toast.success("Account created! Check your email to verify.");
       const redirect = new URLSearchParams(window.location.search).get("redirect");
@@ -69,6 +82,19 @@ export default function RegisterPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+          {pendingMessage ? (
+            <div className="text-center space-y-4">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50">
+                <Clock className="h-6 w-6 text-amber-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">Application submitted</h2>
+              <p className="text-sm text-gray-600">{pendingMessage}</p>
+              <p className="text-xs text-gray-400">We will e-mail you as soon as it has been reviewed.</p>
+              <Link href="/" className="inline-block text-sm font-medium text-primary-600 hover:underline">
+                Back to the homepage
+              </Link>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -109,9 +135,13 @@ export default function RegisterPage() {
                 className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
               >
                 <option value="student">Student</option>
-                <option value="teacher">Teacher</option>
                 <option value="parent">Parent</option>
+                <option value="teacher">Teacher (needs approval)</option>
+                <option value="admin">Administrator (needs Super Admin approval)</option>
               </select>
+              {ROLE_HINTS[selectedRole] && (
+                <p className="text-xs text-amber-700 mt-1.5">{ROLE_HINTS[selectedRole]}</p>
+              )}
             </div>
 
             <div>
@@ -145,6 +175,7 @@ export default function RegisterPage() {
               {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
+          )}
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-6">
