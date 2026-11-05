@@ -30,7 +30,7 @@ from sqlalchemy.future import select  # noqa: E402
 import app.models  # noqa: E402,F401
 from app.core.config import settings  # noqa: E402
 from app.core.database import AsyncSessionLocal, engine  # noqa: E402
-from app.core.security import hash_password  # noqa: E402
+from app.core.security import hash_password, verify_password  # noqa: E402
 from app.models.activity import ActivityCategory  # noqa: E402
 from app.models.base import AccountApprovalStatus, Profile, Role, User, UserRole  # noqa: E402
 from app.services import activity_service  # noqa: E402
@@ -97,12 +97,18 @@ async def upsert_staff(email: str, name: str, role: UserRole, password: str) -> 
             db.add(user)
             action = "Created"
         else:
+            role_changed = user.role_id != role_entity.id
             user.role_id = role_entity.id
-            user.hashed_password = hash_password(password)
             if user.profile and name:
                 user.profile.full_name = name[:100]
-            await revoke_all_sessions(db, user.id)
-            action = "Updated"
+            # Re-running with the current password (e.g. a bootstrap on every restart)
+            # leaves the hash and the user's sessions untouched.
+            password_changed = not verify_password(password, user.hashed_password)
+            if password_changed:
+                user.hashed_password = hash_password(password)
+            if password_changed or role_changed:
+                await revoke_all_sessions(db, user.id)
+            action = "Updated" if (password_changed or role_changed) else "Verified"
 
         user.is_active = True
         user.is_verified = True
