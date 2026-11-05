@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.email import AsyncEmailEngine
 from app.core.exceptions import AppBaseException, AuthorizationError, NotFoundError
+from app.core.roles import effective_role
 from app.models.activity import ActivityCategory
 from app.models.base import AccountApprovalStatus, Role, User, UserRole
 from app.models.notification import NotificationChannel, NotificationEvent, NotificationLog
@@ -45,10 +46,9 @@ def requires_approval(role: UserRole) -> bool:
 
 
 def _role(user: User) -> Optional[UserRole]:
-    if user is None or user.role is None:
-        return None
     try:
-        return UserRole(user.role.name.value if isinstance(user.role.name, UserRole) else user.role.name)
+        role = effective_role(user)
+        return UserRole(role) if role else None
     except ValueError:
         return None
 

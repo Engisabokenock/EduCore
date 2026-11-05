@@ -10,6 +10,7 @@ from sqlalchemy.future import select
 
 from app.core.config import settings
 from app.core.email import AsyncEmailEngine
+from app.core.roles import effective_role, is_platform_owner
 from app.core.exceptions import AppBaseException, AuthenticationError, AuthorizationError, ConflictError
 from app.core.security import (
     burn_password_check,
@@ -38,11 +39,7 @@ def normalize_email(email: str) -> str:
 
 
 def role_value(user: User) -> str:
-    role = getattr(user, "role", None)
-    if role is None:
-        return UserRole.STUDENT.value
-    name = role.name
-    return name.value if isinstance(name, UserRole) else str(name)
+    return effective_role(user) or UserRole.STUDENT.value
 
 
 def serialize_user(user: User) -> dict:
@@ -319,6 +316,8 @@ async def deactivate_account(db: AsyncSession, user: User) -> None:
     personal data anonymised, which honours erasure requests under the Kenya Data
     Protection Act while keeping the ledger intact.
     """
+    if is_platform_owner(user):
+        raise AuthorizationError("The platform owner account cannot be deleted.")
     activity_service.record(
         db, action="account.deleted", category=ActivityCategory.ACCOUNT,
         summary=f"{user.email} deleted their account", actor=user,

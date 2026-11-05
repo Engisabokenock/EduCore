@@ -13,7 +13,8 @@ The password is read from the EDUCORE_ACCOUNT_PASSWORD environment variable or p
 for interactively. It is never accepted as a command-line argument, which would leak
 into shell history and process listings.
 
-Only one Super Admin is allowed unless ``--allow-additional-owner`` is passed.
+The Super Admin role is reserved for PLATFORM_OWNER_EMAIL. Provisioning the owner moves
+any other account that still holds the Super Admin role down to Admin.
 """
 import argparse
 import asyncio
@@ -27,6 +28,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from sqlalchemy.future import select  # noqa: E402
 
 import app.models  # noqa: E402,F401
+from app.core.config import settings  # noqa: E402
 from app.core.database import AsyncSessionLocal, engine  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.models.activity import ActivityCategory  # noqa: E402
@@ -49,24 +51,45 @@ def read_password() -> str:
     return password
 
 
-async def upsert_staff(email: str, name: str, role: UserRole, password: str, allow_additional_owner: bool) -> str:
+async def _demote_other_owners(db, owner_email: str, now: datetime) -> list[str]:
+    admin_role = await get_role(db, UserRole.ADMIN)
+    others = (await db.execute(
+        select(User).join(Role, Role.id == User.role_id).where(
+            Role.name == UserRole.SUPER_ADMIN.value, User.email != owner_email
+        )
+    )).scalars().all()
+    for other in others:
+        other.role_id = admin_role.id
+        other.approval_status = AccountApprovalStatus.APPROVED
+        other.reviewed_at = now
+        await revoke_all_sessions(db, other.id)
+        activity_service.record(
+            db, action="admin.role_changed", category=ActivityCategory.ADMIN,
+            summary=f"Moved {other.email} from super_admin to admin (single platform owner)",
+            actor_email="server-console", target_type="user", target_id=other.id,
+            details={"from": "super_admin", "to": "admin"},
+        )
+    return [o.email for o in others]
+
+
+async def upsert_staff(email: str, name: str, role: UserRole, password: str) -> str:
     email = normalize_email(email)
+    owner_email = normalize_email(settings.PLATFORM_OWNER_EMAIL)
+    if role == UserRole.SUPER_ADMIN and email != owner_email:
+        raise SystemExit(
+            f"The Super Admin role is reserved for the platform owner ({owner_email}). "
+            "Change PLATFORM_OWNER_EMAIL first if the owner has really changed."
+        )
+    if role != UserRole.SUPER_ADMIN and email == owner_email:
+        raise SystemExit(f"{owner_email} is the platform owner and must keep the Super Admin role.")
+
+    demoted: list[str] = []
     async with AsyncSessionLocal() as db:
         role_entity = await get_role(db, role)
-
-        if role == UserRole.SUPER_ADMIN and not allow_additional_owner:
-            other_owner = (await db.execute(
-                select(User.email).join(Role, Role.id == User.role_id).where(
-                    Role.name == UserRole.SUPER_ADMIN.value, User.email != email, User.is_active.is_(True)
-                )
-            )).scalars().first()
-            if other_owner:
-                raise SystemExit(
-                    f"A Super Admin already exists ({other_owner}). The platform has a single owner; "
-                    "pass --allow-additional-owner to override."
-                )
-
         now = datetime.now(timezone.utc)
+        if role == UserRole.SUPER_ADMIN:
+            demoted = await _demote_other_owners(db, owner_email, now)
+
         user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
         if user is None:
             user = User(email=email, hashed_password=hash_password(password), role_id=role_entity.id)
@@ -100,7 +123,10 @@ async def upsert_staff(email: str, name: str, role: UserRole, password: str, all
         )
         await db.commit()
     await engine.dispose()
-    return f"{action} {role.value}: {email}"
+    message = f"{action} {role.value}: {email}"
+    if demoted:
+        message += f"\nMoved to admin (only one Super Admin is allowed): {', '.join(demoted)}"
+    return message
 
 
 def main() -> None:
@@ -108,12 +134,11 @@ def main() -> None:
     parser.add_argument("--role", choices=sorted(STAFF_ROLES), required=True)
     parser.add_argument("--email", required=True)
     parser.add_argument("--name", default="")
-    parser.add_argument("--allow-additional-owner", action="store_true")
     args = parser.parse_args()
 
     role = STAFF_ROLES[args.role]
     name = args.name or ("Platform Owner" if role == UserRole.SUPER_ADMIN else "Administrator")
-    print(asyncio.run(upsert_staff(args.email, name, role, read_password(), args.allow_additional_owner)))
+    print(asyncio.run(upsert_staff(args.email, name, role, read_password())))
 
 
 if __name__ == "__main__":

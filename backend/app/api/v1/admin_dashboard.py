@@ -10,6 +10,7 @@ from app.core.cache import CacheManager
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.api.deps import RoleChecker, PermissionGuard, has_role
+from app.core.roles import is_platform_owner
 from app.services import activity_service
 from app.services.user_service import normalize_email, revoke_all_sessions, serialize_user
 from app.models.activity import ActivityCategory
@@ -53,7 +54,9 @@ def _guard_platform_owner(actor: User, target: User) -> None:
 
 
 def _guard_role_grant(actor: User, role: Optional[UserRole]) -> None:
-    if role in _PRIVILEGED_ROLES and not has_role(actor, [UserRole.SUPER_ADMIN]):
+    if role == UserRole.SUPER_ADMIN:
+        raise AuthorizationError("The Super Admin role belongs to the platform owner and cannot be granted.")
+    if role == UserRole.ADMIN and not has_role(actor, [UserRole.SUPER_ADMIN]):
         raise AuthorizationError("Only the Super Admin can grant administrator access.")
 
 
@@ -67,6 +70,8 @@ async def _apply_user_update(db: AsyncSession, actor: User, target: User, payloa
             await revoke_all_sessions(db, target.id)
     if payload.email:
         email = normalize_email(payload.email)
+        if email != target.email and is_platform_owner(target):
+            raise AuthorizationError("The platform owner's e-mail address identifies the Super Admin and cannot be changed here.")
         if email != target.email:
             clash = (await db.execute(
                 select(User.id).where(User.email == email, User.id != target.id)

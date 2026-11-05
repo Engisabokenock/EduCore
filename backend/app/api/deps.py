@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthenticationError, AuthorizationError
 from app.core.network import get_client_ip
+from app.core.roles import effective_role, role_is_downgraded
 from app.core.security import verify_jwt_token
 from app.models.base import AccountApprovalStatus, DynamicPermission, User, UserRole
 
@@ -64,9 +65,7 @@ async def get_optional_user(
 
 
 def role_of(user: Optional[User]) -> Optional[str]:
-    if user is None or user.role is None:
-        return None
-    return str(user.role.name.value if isinstance(user.role.name, UserRole) else user.role.name)
+    return effective_role(user)
 
 
 def has_role(user: Optional[User], roles: Iterable[UserRole]) -> bool:
@@ -107,7 +106,11 @@ class PermissionGuard:
     def __call__(self, current_user: User = Depends(get_current_user)) -> User:
         if has_role(current_user, [UserRole.SUPER_ADMIN]):
             return current_user
-        assigned = {p.name for p in (current_user.role.permissions if current_user.role else [])}
+        # A super_admin role row on a non-owner account grants nothing.
+        permissions = [] if role_is_downgraded(current_user) else (
+            current_user.role.permissions if current_user.role else []
+        )
+        assigned = {p.name for p in permissions}
         if self.required_permission not in assigned:
             raise AuthorizationError(
                 f"This action requires the '{self.required_permission.value}' permission."

@@ -11,6 +11,7 @@
 
 ### Security
 - Only the Super Admin can grant the admin role or edit administrator accounts.
+- The Super Admin role is reserved for `PLATFORM_OWNER_EMAIL` (default isabokenock@gmail.com). Any other account holding that role is treated as a student, the role cannot be granted through the API, and the owner account cannot be renamed or deleted. Provisioning the owner moves any other Super Admin to Admin.
 - Role changes and deactivation revoke the user's sessions.
 
 ### Fixed

@@ -22,6 +22,7 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-access-0123456789abcdef")
 os.environ.setdefault("JWT_REFRESH_SECRET", "test-jwt-refresh-0123456789abcdef")
 os.environ.setdefault("MPESA_CALLBACK_SECRET", "cb-secret-test")
 os.environ["APP_ENV"] = "development"
+os.environ["PLATFORM_OWNER_EMAIL"] = "owner@example.com"
 os.environ["RATE_LIMIT_PER_MINUTE"] = "100000"
 os.environ["AUTH_RATE_LIMIT_PER_MINUTE"] = "100000"
 os.environ.setdefault("REDIS_URL", "")

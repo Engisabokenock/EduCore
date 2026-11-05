@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "EduCore"
     APP_ENV: Literal["development", "staging", "production"] = "development"
     FRONTEND_URL: str = "http://localhost:3000"
+    # The single account allowed to hold the Super Admin role.
+    PLATFORM_OWNER_EMAIL: str = "isabokenock@gmail.com"
     # Comma-separated list of browser origins allowed to call the API directly.
     # The Next.js app proxies /api/* server-side, so in most deployments only the
     # frontend origin itself needs to be listed here.

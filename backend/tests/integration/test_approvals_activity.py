@@ -146,3 +146,27 @@ async def test_super_admin_monitors_all_activity(client, db_engine):
     async with db_engine.connect() as conn:
         dump = (await conn.execute(text("SELECT string_agg(details::text || summary, ' ') FROM activity_logs"))).scalar()
     assert PASSWORD not in dump and "wrong-password" not in dump
+
+
+async def test_only_the_platform_owner_is_super_admin(client, db_engine):
+    owner = await staff_tokens(client, db_engine, "owner@example.com", "super_admin")
+
+    # A super_admin role row on any other account grants nothing.
+    rogue = await staff_tokens(client, db_engine, "rogue@example.com", "super_admin")
+    me = await client.get(f"{API}/auth/me/", headers=auth(rogue))
+    assert me.json()["role"] == "student"
+    assert (await client.get(f"{API}/admin-control-plane/dashboard/stats/", headers=auth(rogue))).status_code == 403
+    assert (await client.get(f"{API}/security-control-plane/activity/", headers=auth(rogue))).status_code == 403
+
+    # Nobody, not even the owner, can hand out the role through the API.
+    student = await register(client, "student@example.com")
+    grant = await client.patch(f"{API}/security-control-plane/users/{student['user']['id']}/override/",
+                               headers=auth(owner), json={"role": "super_admin"})
+    assert grant.status_code == 403
+
+    # The owner's e-mail anchors the role, so it cannot be changed from the admin panel.
+    owner_id = (await client.get(f"{API}/auth/me/", headers=auth(owner))).json()["id"]
+    rename = await client.patch(f"{API}/admin-control-plane/users/{owner_id}/", headers=auth(owner),
+                                json={"email": "someone-else@example.com"})
+    assert rename.status_code == 403
+    assert (await client.delete(f"{API}/users/me/", headers=auth(owner))).status_code == 403

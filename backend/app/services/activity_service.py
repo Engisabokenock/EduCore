@@ -20,6 +20,7 @@ from sqlalchemy import and_, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.request_context import get_request_context
+from app.core.roles import effective_role
 from app.models.activity import ActivityCategory, ActivityLog
 from app.models.base import AccountApprovalStatus, Profile, User
 
@@ -29,11 +30,7 @@ _SENSITIVE_KEYS = {"password", "new_password", "old_password", "token", "refresh
 
 
 def _role_of(user: Optional[User]) -> Optional[str]:
-    role = getattr(user, "role", None) if user is not None else None
-    if role is None:
-        return None
-    name = role.name
-    return str(name.value if hasattr(name, "value") else name)
+    return effective_role(user)
 
 
 def _clean(details: Optional[dict]) -> dict:
