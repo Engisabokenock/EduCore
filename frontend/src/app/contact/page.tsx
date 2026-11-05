@@ -11,55 +11,38 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   const whatsapp = whatsappLink("Hello EduCore, I need help with ");
-  const hasChannel = !!(site.supportEmail || site.supportPhone || whatsapp);
 
   return (
     <PublicShell>
       <Prose title="Contact us" intro="We usually reply within one working day.">
-        {hasChannel ? (
-          <section className="grid gap-4 sm:grid-cols-3">
-            {site.supportEmail && (
-              <a
-                href={`mailto:${site.supportEmail}`}
-                className="rounded-xl border border-gray-100 bg-white p-5 hover:shadow-sm"
-              >
-                <Mail className="mb-2 h-5 w-5 text-primary-600" />
-                <p className="font-medium text-gray-900">E-mail</p>
-                <p className="break-all text-sm text-gray-600">{site.supportEmail}</p>
-              </a>
-            )}
-            {site.supportPhone && (
-              <a
-                href={`tel:${site.supportPhone.replace(/\s/g, "")}`}
-                className="rounded-xl border border-gray-100 bg-white p-5 hover:shadow-sm"
-              >
-                <Phone className="mb-2 h-5 w-5 text-primary-600" />
-                <p className="font-medium text-gray-900">Phone</p>
-                <p className="text-sm text-gray-600">{site.supportPhone}</p>
-              </a>
-            )}
-            {whatsapp && (
-              <a
-                href={whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl border border-gray-100 bg-white p-5 hover:shadow-sm"
-              >
-                <MessageCircle className="mb-2 h-5 w-5 text-green-600" />
-                <p className="font-medium text-gray-900">WhatsApp</p>
-                <p className="text-sm text-gray-600">Chat with support</p>
-              </a>
-            )}
-          </section>
-        ) : (
-          <section className="rounded-xl border border-amber-100 bg-amber-50 p-5 text-sm text-amber-900">
-            Our support channels are being set up. In the meantime, most questions are answered in the{" "}
-            <Link href="/help" className="font-medium underline">
-              Help Center
-            </Link>
-            .
-          </section>
-        )}
+        <section className="grid gap-4 sm:grid-cols-3">
+          <a
+            href={`mailto:${site.supportEmail}`}
+            className="rounded-xl border border-gray-100 bg-white p-5 hover:shadow-sm"
+          >
+            <Mail className="mb-2 h-5 w-5 text-primary-600" />
+            <p className="font-medium text-gray-900">E-mail</p>
+            <p className="break-all text-sm text-gray-600">{site.supportEmail}</p>
+          </a>
+          <a
+            href={`tel:${site.supportPhoneTel}`}
+            className="rounded-xl border border-gray-100 bg-white p-5 hover:shadow-sm"
+          >
+            <Phone className="mb-2 h-5 w-5 text-primary-600" />
+            <p className="font-medium text-gray-900">Phone</p>
+            <p className="text-sm text-gray-600">{site.supportPhone}</p>
+          </a>
+          <a
+            href={whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-gray-100 bg-white p-5 hover:shadow-sm"
+          >
+            <MessageCircle className="mb-2 h-5 w-5 text-green-600" />
+            <p className="font-medium text-gray-900">WhatsApp</p>
+            <p className="text-sm text-gray-600">{site.supportPhone}</p>
+          </a>
+        </section>
 
         <section>
           <h2>M-Pesa payment issues</h2>

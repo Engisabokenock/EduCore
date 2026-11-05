@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { site, whatsappLink } from "@/lib/site";
 import {
   BookOpen,
   Search,
@@ -591,12 +592,14 @@ export default async function HomePage() {
                   Subscribe
                 </button>
               </div>
-              <button
-                type="button"
+              <a
+                href={whatsappLink("Hello EduCore, please send me new resources on WhatsApp.")}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-2 text-xs text-white/80 hover:text-white underline-offset-2 hover:underline"
               >
-                <MessageCircle className="h-3 w-3" /> Or join our WhatsApp group
-              </button>
+                <MessageCircle className="h-3 w-3" /> Or get updates on WhatsApp
+              </a>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 border border-white/10">
@@ -670,8 +673,11 @@ export default async function HomePage() {
                 <li><Link href="/help" className="hover:text-white">Help Center</Link></li>
                 <li><Link href="/contact" className="hover:text-white">M-Pesa Support</Link></li>
                 <li><Link href="/contact" className="hover:text-white">Payment Issues</Link></li>
-                <li><a href="https://wa.me/254700000000" target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">
+                <li><a href={whatsappLink("Hello EduCore, I need help with ")} target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">
                     <MessageCircle className="h-3 w-3" /> WhatsApp us
+                </a></li>
+                <li><a href={`tel:${site.supportPhoneTel}`} className="hover:text-white">
+                    Call {site.supportPhone}
                 </a></li>
               </ul>
             </div>

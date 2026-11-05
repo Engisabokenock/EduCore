@@ -27,8 +27,11 @@ const CURRICULUM_LABELS: Record<string, string> = {
 };
 
 export default async function GradesPage() {
-  // An outage raises ApiUnavailableError (retry page); an empty catalogue is not a 404.
-  const grades = (await serverApi.getGrades(undefined, { strict: true })) ?? [];
+  // This page is pre-rendered at build time and revalidated, so it must not throw when the
+  // API is unreachable (that would fail the deploy). null means "unavailable right now".
+  const result = await serverApi.getGrades();
+  const unavailable = result === null;
+  const grades = result ?? [];
 
   const grouped = grades.reduce<Record<string, typeof grades>>((acc, grade) => {
     const key = grade.curriculum ?? "cbc";
@@ -85,7 +88,9 @@ export default async function GradesPage() {
 
           {grades.length === 0 && (
             <p className="rounded-xl border border-gray-100 bg-white p-8 text-center text-gray-500">
-              Grades are being prepared. Please check back soon.
+              {unavailable
+                ? "We couldn't load the grades just now. Please refresh in a moment."
+                : "Grades are being prepared. Please check back soon."}
             </p>
           )}
 
