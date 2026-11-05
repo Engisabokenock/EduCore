@@ -25,20 +25,11 @@ export const metadata: Metadata = {
     locale: "en_KE",
     siteName: "EduCore",
     url: SITE,
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "EduCore — Kenya's #1 Education Platform",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     site: "@educore_ke",
     creator: "@educore_ke",
-    images: ["/og-image.png"],
   },
   alternates: {
     canonical: SITE,

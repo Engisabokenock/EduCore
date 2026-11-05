@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # ── Rate limiting (per client IP, sliding 60s window) ────────────────────
     RATE_LIMIT_PER_MINUTE: int = 240
     AUTH_RATE_LIMIT_PER_MINUTE: int = 10
+    # Shared secret the Next.js server sends on server-side rendering requests. Those
+    # requests all come from the web server's address, so without it every visitor would
+    # share one per-IP budget and pages would fail under normal traffic.
+    INTERNAL_API_TOKEN: str = ""
 
     # ── Business rules ───────────────────────────────────────────────────────
     DAILY_FREE_DOWNLOAD_LIMIT: int = 5

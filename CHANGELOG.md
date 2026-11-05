@@ -17,6 +17,9 @@
 - Role changes and deactivation revoke the user's sessions.
 
 ### Fixed
+- 404s across the site: built the missing admin pages (users, resources, reviews, financial, schools, settings), public pages (about, help, contact, privacy, terms) and account recovery (forgot/reset password, verify e-mail).
+- Server-side rendering shared one per-IP rate limit for all visitors, so busy periods turned pages into 404s. The web server now authenticates with `INTERNAL_API_TOKEN`, and detail pages show a retry page (not a 404) when the API is unavailable.
+- Resource type filters used names the API does not know (for example `notes`), subject topic links could point to `/grades//...`, and the social preview image was missing.
 - The admin shell rendered twice (route layout and page both wrapped it).
 - The old audit-trail endpoints returned notification e-mails instead of activity.
 

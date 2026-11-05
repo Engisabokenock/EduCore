@@ -115,9 +115,9 @@ function ResourceCard({ resource, gradeSlug, subjectSlug, topicSlug }: {
 
 export default async function TopicPage({ params, searchParams }: Props) {
   const [grade, subject, topics] = await Promise.all([
-    serverApi.getGrade(params.grade),
-    serverApi.getSubject(params.subject, params.grade),
-    serverApi.getTopics(params.subject, params.grade),
+    serverApi.getGrade(params.grade, { strict: true }),
+    serverApi.getSubject(params.subject, params.grade, { strict: true }),
+    serverApi.getTopics(params.subject, params.grade, { strict: true }),
   ]);
 
   if (!grade || !subject) notFound();

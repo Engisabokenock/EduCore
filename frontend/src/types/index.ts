@@ -227,6 +227,9 @@ export interface AdminUser {
   phone: string;
   role: UserRole;
   is_verified: boolean;
+  is_active: boolean;
+  approval_status?: ApprovalStatus;
+  last_login_at?: string | null;
   date_joined: string;
   profile: Profile | null;
 }
@@ -237,6 +240,8 @@ export interface SystemSettings {
   allowed_upload_extensions: string[];
   grace_period_duration_days: number;
   mpesa_fallback_routing_active: boolean;
+  mpesa_configured?: boolean;
+  storage_configured?: boolean;
   last_recalculation_timestamp: string;
 }
 
@@ -310,11 +315,56 @@ export interface School {
 
 export interface Transaction {
   id: string;
-  amount: string;
+  amount: number;
   phone_number: string;
   status: string;
+  checkout_request_id: string;
   mpesa_receipt_number: string | null;
+  failure_reason?: string | null;
+  plan_id?: string | null;
   created_at: string;
+}
+
+export interface AdminResourceRow {
+  id: string;
+  title: string;
+  slug: string;
+  type_variant: string;
+  grade: string;
+  subject: string;
+  term: number;
+  year: number;
+  is_premium: boolean;
+  status: "published" | "draft" | "archived";
+  views_count: number;
+  downloads_count: number;
+  created_at: string;
+  published_at: string | null;
+}
+
+export interface AdminSubscriptionRow {
+  id: string;
+  user_id: string;
+  user_email: string;
+  user_name: string | null;
+  plan_name: string;
+  status: "active" | "canceled" | "grace_period" | "expired";
+  auto_renew: boolean;
+  current_period_start: string;
+  current_period_end: string;
+  is_current: boolean;
+}
+
+export interface ModerationReview {
+  id: string;
+  resource_id: string;
+  rating: number;
+  comment: string | null;
+  moderation_status: "pending" | "approved" | "rejected";
+  is_reported: boolean;
+  created_at: string;
+  updated_at: string;
+  user: { id: string; full_name: string; avatar_url: string | null };
 }
 
 export interface SubscriptionPlan {

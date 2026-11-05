@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { BookOpen, ChevronRight, GraduationCap } from "lucide-react";
 import { serverApi } from "@/lib/server-api";
 
@@ -28,8 +27,8 @@ const CURRICULUM_LABELS: Record<string, string> = {
 };
 
 export default async function GradesPage() {
-  const grades = await serverApi.getGrades();
-  if (!grades || grades.length === 0) notFound();
+  // An outage raises ApiUnavailableError (retry page); an empty catalogue is not a 404.
+  const grades = (await serverApi.getGrades(undefined, { strict: true })) ?? [];
 
   const grouped = grades.reduce<Record<string, typeof grades>>((acc, grade) => {
     const key = grade.curriculum ?? "cbc";
@@ -83,6 +82,12 @@ export default async function GradesPage() {
               Select your grade to access curriculum-aligned notes, past papers, and worksheets.
             </p>
           </div>
+
+          {grades.length === 0 && (
+            <p className="rounded-xl border border-gray-100 bg-white p-8 text-center text-gray-500">
+              Grades are being prepared. Please check back soon.
+            </p>
+          )}
 
           {Object.entries(grouped).map(([curriculum, curriculumGrades]) => (
             <section key={curriculum} className="mb-10">

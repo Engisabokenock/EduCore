@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ResourceDetailPage({ params }: Props) {
-  const resource = await serverApi.getResource(params.slug);
+  const resource = await serverApi.getResource(params.slug, { strict: true });
   if (!resource) notFound();
 
   const grade = resource.grade;

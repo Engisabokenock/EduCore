@@ -33,9 +33,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SubjectPage({ params }: Props) {
   const [grade, subject, topics] = await Promise.all([
-    serverApi.getGrade(params.grade),
-    serverApi.getSubject(params.subject, params.grade),
-    serverApi.getTopics(params.subject, params.grade),
+    serverApi.getGrade(params.grade, { strict: true }),
+    serverApi.getSubject(params.subject, params.grade, { strict: true }),
+    serverApi.getTopics(params.subject, params.grade, { strict: true }),
   ]);
 
   if (!grade || !subject) notFound();

@@ -25,7 +25,8 @@ from app.schemas.admin_dashboard import (
     SystemSettingsUpdatePayload, AdminBulkActionRequest
 )
 from app.schemas.users import UserAccountSchema
-from app.schemas.admin_dashboard import AdminDashboardStats
+from app.schemas.admin_dashboard import AdminDashboardStats, AdminResourcePage, AdminSubscriptionPage
+from app.services import admin_service
 from app.schemas.payment import TransactionOut
 from app.schemas.school import SchoolResponse
 
@@ -180,6 +181,18 @@ async def administrative_override_user_profile(
 
 # --- SECTION 2: CURRICULUM ASSET BALANCING (RESOURCES) ---
 
+@router.get("/resources", response_model=AdminResourcePage, dependencies=[super_admin_clearance_guard])
+async def list_all_resources(
+    status_filter: str = Query("all", alias="status", pattern="^(all|published|draft|archived)$"),
+    search: Optional[str] = Query(None, min_length=2, max_length=100),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Every resource including drafts and archived items (the public listing shows published only)."""
+    return await admin_service.list_resources(db, status=status_filter, search=search, page=page, page_size=page_size)
+
+
 @router.post("/resources/bulk-action", status_code=status.HTTP_200_OK, dependencies=[super_admin_clearance_guard])
 async def administrative_bulk_resource_processing(payload: AdminBulkActionRequest, db: AsyncSession = Depends(get_db)):
     """Executes high-efficiency bulk updates across multiple content asset partitions simultaneously."""
@@ -213,6 +226,19 @@ async def query_global_financial_transactions(payload: AdminPaymentFilterPayload
     stmt = select(PaymentTransaction).where(and_(true(), *conditions)).offset(offset_calc).limit(payload.page_size).order_by(PaymentTransaction.created_at.desc())
     ctx = await db.execute(stmt)
     return ctx.scalars().all()
+
+@router.get("/financial/subscriptions", response_model=AdminSubscriptionPage, dependencies=[super_admin_clearance_guard])
+async def list_subscriptions(
+    status_filter: Optional[SubscriptionState] = Query(None, alias="status"),
+    search: Optional[str] = Query(None, min_length=2, max_length=100),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    return await admin_service.list_subscriptions(
+        db, status=status_filter, search=search, page=page, page_size=page_size
+    )
+
 
 @router.post("/financial/subscriptions/{subscription_id}/force-expire", status_code=status.HTTP_200_OK, dependencies=[super_admin_clearance_guard])
 async def force_terminate_user_contract(subscription_id: uuid.UUID, db: AsyncSession = Depends(get_db)):

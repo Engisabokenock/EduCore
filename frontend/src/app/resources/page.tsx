@@ -8,14 +8,17 @@ interface Props {
   searchParams: { type?: string };
 }
 
+// Keys mirror the API's resource types (ResourceTypeVariant).
 const TYPE_LABELS: Record<string, string> = {
-  notes: "Notes",
-  past_paper: "Past Paper",
-  worksheet: "Worksheet",
-  revision: "Revision Notes",
-  video: "Video",
-  audio: "Audio",
-  ebook: "eBook",
+  worksheet: "Worksheets",
+  past_paper: "Past Papers",
+  exam: "Exams",
+  mock_exam: "Mock Exams",
+  revision_paper: "Revision Papers",
+  lesson_note: "Lesson Notes",
+  marking_scheme: "Marking Schemes",
+  scheme_of_work: "Schemes of Work",
+  lesson_plan: "Lesson Plans",
 };
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
@@ -38,7 +41,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 export default async function ResourcesPage({ searchParams }: Props) {
-  const type = searchParams.type;
+  // Unknown types would be rejected by the API; treat them as "all resources".
+  const type = searchParams.type && TYPE_LABELS[searchParams.type] ? searchParams.type : undefined;
   const resources = type ? await serverApi.getResources({ type }) : await serverApi.getResources({});
 
   return (

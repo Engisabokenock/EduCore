@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
  *
  * The portal cookie is only a routing hint; every API call is authorised server-side.
  */
-const LEARNER_AREAS = ["/dashboard", "/downloads", "/checkout", "/premium"];
+const LEARNER_AREAS = ["/dashboard", "/checkout"];
 const STAFF_AREAS = ["/admin", "/teacher"];
 const PORTAL_COOKIE = "educore_portal";
 
@@ -46,9 +46,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/downloads/:path*",
     "/checkout/:path*",
-    "/premium/:path*",
     "/admin/:path*",
     "/teacher/:path*",
   ],

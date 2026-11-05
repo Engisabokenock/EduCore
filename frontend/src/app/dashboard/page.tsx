@@ -149,7 +149,7 @@ export default function DashboardPage() {
               { href: "/subjects", label: "Browse Subjects" },
               { href: "/resources", label: "All Resources" },
               { href: "/resources?type=past_paper", label: "Past Papers" },
-              { href: "/resources?type=notes", label: "Notes" },
+              { href: "/resources?type=lesson_note", label: "Notes" },
               { href: "/resources?type=worksheet", label: "Worksheets" },
               { href: "/pricing", label: "Upgrade Premium" },
             ].map((link) => (

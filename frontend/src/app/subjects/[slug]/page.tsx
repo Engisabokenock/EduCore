@@ -144,7 +144,11 @@ export default async function SubjectPage({ params }: Props) {
               {subject.topics?.length ? subject.topics.map((topic) => (
                 <Link
                   key={topic.id}
-                  href={`/grades/${subject.grade?.slug ?? ""}/${subject.slug}/${topic.slug}`}
+                  href={
+                    subject.grade?.slug
+                      ? `/grades/${subject.grade.slug}/${subject.slug}/${topic.slug}`
+                      : `/search?q=${encodeURIComponent(topic.name)}`
+                  }
                   className="block rounded-xl border border-gray-100 p-5 hover:shadow-md transition-all"
                 >
                   <div className="flex items-center gap-2 mb-2">

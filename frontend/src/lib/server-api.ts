@@ -25,6 +25,29 @@ const BASE = `${API_ORIGIN}/api/v1`;
 /** Seconds cached pages keep catalogue data before revalidating. */
 const REVALIDATE_SECONDS = 300;
 
+/**
+ * Shared secret identifying this server to the API. Server-side requests all come from
+ * one address; without it every visitor would share a single rate-limit budget.
+ */
+const INTERNAL_TOKEN = process.env.INTERNAL_API_TOKEN;
+
+/**
+ * Thrown when the API could not answer (rate limited, down, timed out). Pages let it
+ * reach the error boundary, which offers a retry, instead of showing a false 404.
+ */
+export class ApiUnavailableError extends Error {
+  constructor(path: string, detail: string) {
+    super(`The EduCore API is temporarily unavailable (${path}: ${detail}).`);
+    this.name = "ApiUnavailableError";
+  }
+}
+
+type GetOptions = {
+  revalidate?: number;
+  /** Return null only for a real 404 and throw ApiUnavailableError for anything else. */
+  strict?: boolean;
+};
+
 export type SearchResults = {
   query: string;
   category: string | null;
@@ -37,7 +60,7 @@ export type SearchResults = {
 async function get<T>(
   path: string,
   params?: Record<string, string | undefined>,
-  revalidate: number = REVALIDATE_SECONDS,
+  { revalidate = REVALIDATE_SECONDS, strict = false }: GetOptions = {},
 ): Promise<T | null> {
   const url = new URL(`${BASE}${path}`);
   if (params) {
@@ -45,46 +68,59 @@ async function get<T>(
       if (v !== undefined && v !== "") url.searchParams.set(k, v);
     });
   }
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (INTERNAL_TOKEN) headers["X-Internal-Token"] = INTERNAL_TOKEN;
+
+  let res: Response;
   try {
-    const res = await fetch(url.toString(), {
+    res = await fetch(url.toString(), {
       next: { revalidate },
-      headers: { Accept: "application/json" },
+      headers,
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) {
-      if (res.status >= 500) {
-        console.error(`[serverApi] ${res.status} from ${url.pathname}`);
-      }
-      return null;
-    }
-    return (await res.json()) as T;
   } catch (error) {
     console.error(`[serverApi] request to ${url.pathname} failed:`, (error as Error).message);
+    if (strict) throw new ApiUnavailableError(url.pathname, (error as Error).message);
     return null;
   }
+
+  if (res.ok) return (await res.json()) as T;
+  if (res.status === 404) return null;
+
+  console.error(`[serverApi] ${res.status} from ${url.pathname}`);
+  if (strict) throw new ApiUnavailableError(url.pathname, `HTTP ${res.status}`);
+  return null;
 }
 
+/**
+ * Pages that call notFound() on null must pass `{ strict: true }`, so an outage shows
+ * the retry page rather than "Page not found". Pages with built-in fallback content
+ * can use the lenient default (null on any failure).
+ */
 export const serverApi = {
-  getGrades: (curriculum?: string) => get<Grade[]>("/academic/grades/", { curriculum }),
+  getGrades: (curriculum?: string, opts?: GetOptions) =>
+    get<Grade[]>("/academic/grades/", { curriculum }, opts),
 
-  getGrade: (slug: string) => get<Grade>(`/academic/grades/${encodeURIComponent(slug)}/`),
+  getGrade: (slug: string, opts?: GetOptions) =>
+    get<Grade>(`/academic/grades/${encodeURIComponent(slug)}/`, undefined, opts),
 
   getSubjects: (grade?: string) => get<Subject[]>("/academic/subjects/", { grade }),
 
   /** Subject slugs repeat across grades — always pass the grade slug when known. */
-  getSubject: (slug: string, grade?: string) =>
-    get<Subject>(`/academic/subjects/${encodeURIComponent(slug)}/`, { grade }),
+  getSubject: (slug: string, grade?: string, opts?: GetOptions) =>
+    get<Subject>(`/academic/subjects/${encodeURIComponent(slug)}/`, { grade }, opts),
 
-  getTopics: (subjectSlug: string, grade?: string) =>
-    get<Topic[]>(`/academic/subjects/${encodeURIComponent(subjectSlug)}/topics/`, { grade }),
+  getTopics: (subjectSlug: string, grade?: string, opts?: GetOptions) =>
+    get<Topic[]>(`/academic/subjects/${encodeURIComponent(subjectSlug)}/topics/`, { grade }, opts),
 
   getResources: (params: Record<string, string>) =>
     get<PaginatedResponse<Resource>>("/resources/", params),
 
-  getResource: (slug: string) => get<Resource>(`/resources/${encodeURIComponent(slug)}/`),
+  getResource: (slug: string, opts?: GetOptions) =>
+    get<Resource>(`/resources/${encodeURIComponent(slug)}/`, undefined, opts),
 
   getPlans: () => get<Plan[]>("/subscriptions/plans/"),
 
   search: (q: string, category?: string) =>
-    get<SearchResults>("/search/", { q, ...(category ? { category } : {}) }, 60),
+    get<SearchResults>("/search/", { q, ...(category ? { category } : {}) }, { revalidate: 60 }),
 };

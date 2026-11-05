@@ -47,3 +47,51 @@ class AdminDashboardStats(BaseModel):
     pending_reviews: int
     total_resources: int
     total_schools: int
+
+
+# --- STAFF LISTINGS ---
+from datetime import datetime  # noqa: E402
+
+
+class AdminResourceRow(BaseModel):
+    id: uuid.UUID
+    title: str
+    slug: str
+    type_variant: str
+    grade: str
+    subject: str
+    term: int
+    year: int
+    is_premium: bool
+    status: str
+    views_count: int
+    downloads_count: int
+    created_at: datetime
+    published_at: Optional[datetime] = None
+
+
+class AdminResourcePage(BaseModel):
+    items: List[AdminResourceRow]
+    total: int
+    page: int
+    page_size: int
+
+
+class AdminSubscriptionRow(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    user_email: str
+    user_name: Optional[str] = None
+    plan_name: str
+    status: str
+    auto_renew: bool
+    current_period_start: datetime
+    current_period_end: datetime
+    is_current: bool
+
+
+class AdminSubscriptionPage(BaseModel):
+    items: List[AdminSubscriptionRow]
+    total: int
+    page: int
+    page_size: int

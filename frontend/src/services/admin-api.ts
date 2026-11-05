@@ -17,6 +17,9 @@ import type {
   UserSubscription,
   DashboardStats,
   BulkActionRequest,
+  AdminResourceRow,
+  AdminSubscriptionRow,
+  ModerationReview,
 } from "@/types";
 
 export const adminApi = {
@@ -36,10 +39,20 @@ export const adminApi = {
     api.patch<AdminUser>(`/admin-control-plane/users/${userId}/`, payload),
 
   // Resource management
+  listResources: (params: { status?: "all" | "published" | "draft" | "archived"; search?: string; page?: number; page_size?: number }) =>
+    api.get<Paginated<AdminResourceRow>>("/admin-control-plane/resources/", { params }),
+
   bulkResourceAction: (payload: BulkActionRequest) =>
     api.post<{ status: string; processed_records_count: number }>("/admin-control-plane/resources/bulk-action/", payload),
 
   // Reviews moderation
+  getModerationQueue: (params: { reported_only?: boolean; limit?: number }) =>
+    api.get<ModerationReview[]>("/reviews/admin/moderation-queue/", { params }),
+
+  approveReview: (reviewId: string) => api.post<ModerationReview>(`/reviews/${reviewId}/approve/`),
+
+  rejectReview: (reviewId: string) => api.post<ModerationReview>(`/reviews/${reviewId}/reject/`),
+
   bulkReviewAction: (payload: BulkActionRequest) =>
     api.post<{ status: string; affected_nodes_count: number }>("/admin-control-plane/moderation/reviews/bulk/", payload),
 
@@ -52,12 +65,21 @@ export const adminApi = {
     page_size?: number;
   }) => api.post<Transaction[]>("/admin-control-plane/financial/transactions/", payload),
 
+  refundTransaction: (transactionId: string) =>
+    api.post<Transaction>(`/payments/transactions/${transactionId}/refund/`),
+
+  listSubscriptions: (params: { status?: string; search?: string; page?: number; page_size?: number }) =>
+    api.get<Paginated<AdminSubscriptionRow>>("/admin-control-plane/financial/subscriptions/", { params }),
+
   forceExpireSubscription: (subscriptionId: string) =>
     api.post(`/admin-control-plane/financial/subscriptions/${subscriptionId}/force-expire/`),
 
   // Schools
   getSchools: (isActive?: boolean) =>
     api.get<School[]>("/admin-control-plane/institutions/audit-list/", { params: isActive !== undefined ? { is_active: isActive } : {} }),
+
+  createSchool: (payload: { name: string; registration_code: string; address?: string }) =>
+    api.post<School>("/schools/", payload),
 
   // System settings
   getSystemSettings: () => api.get<SystemSettings>("/admin-control-plane/system-settings/"),

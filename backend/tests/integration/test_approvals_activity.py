@@ -203,3 +203,45 @@ async def test_staff_and_learners_use_separate_portals(client, db_engine):
             "password": PASSWORD, "role": role,
         })
         assert res.status_code == 403, (path, role, res.text)
+
+
+async def test_admin_listings_include_drafts_and_subscriptions(client, db_engine):
+    from tests.integration.test_api_flows import seed_catalogue
+
+    ids = await seed_catalogue(db_engine)
+    admin = await staff_tokens(client, db_engine, "admin@example.com", "admin")
+    async with db_engine.begin() as conn:
+        await conn.execute(text("UPDATE academic_resources SET is_published = false WHERE id = :id"), {"id": ids["prem"]})
+
+    res = await client.get(f"{API}/admin-control-plane/resources/?status=draft", headers=auth(admin))
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["total"] == 1 and body["items"][0]["status"] == "draft" and body["items"][0]["grade"] == "Grade 2"
+    assert (await client.get(f"{API}/admin-control-plane/resources/?search=fractions", headers=auth(admin))).json()["total"] == 1
+
+    subs = await client.get(f"{API}/admin-control-plane/financial/subscriptions/", headers=auth(admin))
+    assert subs.status_code == 200 and subs.json()["total"] == 0
+
+    student = await staff_tokens(client, db_engine, "student@example.com", "student")
+    assert (await client.get(f"{API}/admin-control-plane/resources/", headers=auth(student))).status_code == 403
+
+
+async def test_ssr_server_does_not_share_the_visitor_rate_limit(client, monkeypatch):
+    from app.api import deps
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "RATE_LIMIT_PER_MINUTE", 2)
+    monkeypatch.setattr(settings, "INTERNAL_API_TOKEN", "ssr-secret-token")
+    deps._LOCAL_BUCKETS.clear()
+    try:
+        statuses = [(await client.get(f"{API}/academic/grades/")).status_code for _ in range(3)]
+        assert statuses == [200, 200, 429]
+
+        trusted = {"X-Internal-Token": "ssr-secret-token"}
+        trusted_statuses = [(await client.get(f"{API}/academic/grades/", headers=trusted)).status_code for _ in range(5)]
+        assert trusted_statuses == [200] * 5
+
+        forged = {"X-Internal-Token": "guess"}
+        assert (await client.get(f"{API}/academic/grades/", headers=forged)).status_code == 429
+    finally:
+        deps._LOCAL_BUCKETS.clear()

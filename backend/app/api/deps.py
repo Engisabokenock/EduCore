@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.exceptions import AppBaseException, AuthenticationError, AuthorizationError
 from app.core.network import get_client_ip
 from app.core.roles import effective_role, role_is_downgraded
-from app.core.security import verify_jwt_token
+from app.core.security import constant_time_equals, verify_jwt_token
 from app.models.base import AccountApprovalStatus, DynamicPermission, User, UserRole
 
 logger = logging.getLogger("educore.deps")
@@ -164,8 +164,17 @@ async def _hit(bucket: str, limit: int) -> None:
         raise AppBaseException("Too many requests. Please slow down and try again shortly.", 429)
 
 
+def is_trusted_internal_request(request: Request) -> bool:
+    """True for server-side rendering calls from our own web server (shared-secret header)."""
+    expected = settings.INTERNAL_API_TOKEN
+    supplied = request.headers.get("x-internal-token")
+    return bool(expected and supplied and constant_time_equals(supplied, expected))
+
+
 async def sliding_window_rate_limiter(request: Request) -> None:
-    """Global per-IP request budget applied to every API route."""
+    """Global per-IP request budget applied to every API route (except our own SSR server)."""
+    if is_trusted_internal_request(request):
+        return
     await _hit(f"global:{get_client_ip(request)}", settings.RATE_LIMIT_PER_MINUTE)
 
 
