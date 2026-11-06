@@ -7,11 +7,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { BookOpen, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { authService } from "@/services/api-service";
 import { getApiErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { safeRedirect } from "@/lib/portal";
+import { AuthShell, FieldError, authButton, authInput, authLabel } from "@/components/auth/AuthShell";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -46,72 +48,54 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <BookOpen className="h-8 w-8 text-primary-600" />
-            <span className="text-2xl font-bold text-gray-900">EduCore</span>
+    <AuthShell
+      title="Welcome back"
+      subtitle="Log in to your learner or parent account."
+      panelTitle="Good to see you again."
+      footer={
+        <>
+          New to EduCore?{" "}
+          <Link href="/register" className="font-bold text-primary-700 hover:underline">
+            Create a free account
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="text-gray-500 mt-1 text-sm">Log in to your student or parent account</p>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+        <div>
+          <label htmlFor="email" className={authLabel}>
+            Email address
+          </label>
+          <input
+            id="email"
+            {...register("email")}
+            type="email"
+            autoComplete="email"
+            className={authInput}
+            placeholder="you@example.com"
+          />
+          <FieldError message={errors.email?.message} />
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email address
-              </label>
-              <input
-                {...register("email")}
-                type="email"
-                autoComplete="email"
-                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="you@example.com"
-              />
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-gray-700">Password</label>
-                <Link href="/forgot-password" className="text-xs text-primary-600 hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-              <input
-                {...register("password")}
-                type="password"
-                autoComplete="current-password"
-                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label htmlFor="password" className="text-sm font-semibold text-gray-700">
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-xs font-semibold text-primary-700 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <PasswordInput id="password" {...register("password")} autoComplete="current-password" placeholder="Your password" />
+          <FieldError message={errors.password?.message} />
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-primary-600 font-medium hover:underline">
-            Sign up free
-          </Link>
-        </p>
-      </div>
-    </div>
+        <button type="submit" disabled={loading} className={authButton}>
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          {loading ? "Signing in..." : "Log in"}
+          {!loading && <ArrowRight className="h-5 w-5" />}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

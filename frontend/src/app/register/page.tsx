@@ -7,25 +7,34 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { BookOpen, Loader2 } from "lucide-react";
+import { ArrowRight, GraduationCap, Heart, Loader2 } from "lucide-react";
 import { authService } from "@/services/api-service";
 import { getApiErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { AuthShell, FieldError, authButton, authInput, authLabel } from "@/components/auth/AuthShell";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 
-const schema = z.object({
-  first_name: z.string().min(2, "First name is required"),
-  last_name: z.string().min(2, "Last name is required"),
-  email: z.string().email("Enter a valid email"),
-  phone: z.string().optional(),
-  role: z.enum(["student", "parent"]),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  password_confirm: z.string(),
-}).refine((d) => d.password === d.password_confirm, {
-  message: "Passwords do not match",
-  path: ["password_confirm"],
-});
+const schema = z
+  .object({
+    first_name: z.string().min(2, "First name is required"),
+    last_name: z.string().min(2, "Last name is required"),
+    email: z.string().email("Enter a valid email"),
+    phone: z.string().optional(),
+    role: z.enum(["student", "parent"]),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    password_confirm: z.string(),
+  })
+  .refine((d) => d.password === d.password_confirm, {
+    message: "Passwords do not match",
+    path: ["password_confirm"],
+  });
 
 type FormData = z.infer<typeof schema>;
+
+const ROLES = [
+  { value: "student", label: "Learner", hint: "I want to revise", icon: GraduationCap },
+  { value: "parent", label: "Parent", hint: "I support my child", icon: Heart },
+] as const;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -35,11 +44,13 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { role: "student" },
   });
+  const role = watch("role");
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -58,102 +69,109 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <BookOpen className="h-8 w-8 text-primary-600" />
-            <span className="text-2xl font-bold text-gray-900">EduCore</span>
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
-          <p className="text-gray-500 mt-1 text-sm">Free to start. No credit card required.</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
-                <input
-                  {...register("first_name")}
-                  className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="John"
-                />
-                {errors.first_name && <p className="text-red-500 text-xs mt-1">{errors.first_name.message}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Last name</label>
-                <input
-                  {...register("last_name")}
-                  className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="Doe"
-                />
-                {errors.last_name && <p className="text-red-500 text-xs mt-1">{errors.last_name.message}</p>}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
-              <input
-                {...register("email")}
-                type="email"
-                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="you@example.com"
-              />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">I am a</label>
-              <select
-                {...register("role")}
-                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
-              >
-                <option value="student">Student</option>
-                <option value="parent">Parent</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-              <input
-                {...register("password")}
-                type="password"
-                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="Min. 8 characters"
-              />
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm password</label>
-              <input
-                {...register("password_confirm")}
-                type="password"
-                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
-              {errors.password_confirm && <p className="text-red-500 text-xs mt-1">{errors.password_confirm.message}</p>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-2"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? "Creating account..." : "Create account"}
-            </button>
-          </form>
-        </div>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
+    <AuthShell
+      title="Create your free account"
+      subtitle="Takes less than a minute. No card needed."
+      footer={
+        <>
           Already have an account?{" "}
-          <Link href="/login" className="text-primary-600 font-medium hover:underline">
-            Sign in
+          <Link href="/login" className="font-bold text-primary-700 hover:underline">
+            Log in
           </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+        <fieldset>
+          <legend className={authLabel}>I am a</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {ROLES.map(({ value, label, hint, icon: Icon }) => {
+              const active = role === value;
+              return (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3.5 transition ${
+                    active ? "border-primary-600 bg-primary-50 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
+                  }`}
+                >
+                  <input type="radio" value={value} {...register("role")} className="sr-only" />
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      active ? "bg-primary-600 text-white" : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className={`block text-sm font-bold ${active ? "text-primary-800" : "text-gray-900"}`}>{label}</span>
+                    <span className="block text-xs text-gray-500">{hint}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="first_name" className={authLabel}>
+              First name
+            </label>
+            <input id="first_name" {...register("first_name")} autoComplete="given-name" className={authInput} placeholder="Amina" />
+            <FieldError message={errors.first_name?.message} />
+          </div>
+          <div>
+            <label htmlFor="last_name" className={authLabel}>
+              Last name
+            </label>
+            <input id="last_name" {...register("last_name")} autoComplete="family-name" className={authInput} placeholder="Wanjiku" />
+            <FieldError message={errors.last_name?.message} />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="email" className={authLabel}>
+            Email address
+          </label>
+          <input id="email" {...register("email")} type="email" autoComplete="email" className={authInput} placeholder="you@example.com" />
+          <FieldError message={errors.email?.message} />
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 sm:gap-3">
+          <div>
+            <label htmlFor="password" className={authLabel}>
+              Password
+            </label>
+            <PasswordInput id="password" {...register("password")} autoComplete="new-password" placeholder="Min. 8 characters" />
+            <FieldError message={errors.password?.message} />
+          </div>
+          <div>
+            <label htmlFor="password_confirm" className={authLabel}>
+              Confirm password
+            </label>
+            <PasswordInput id="password_confirm" {...register("password_confirm")} autoComplete="new-password" placeholder="Repeat it" />
+            <FieldError message={errors.password_confirm?.message} />
+          </div>
+        </div>
+
+        <button type="submit" disabled={loading} className={authButton}>
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          {loading ? "Creating account..." : "Create free account"}
+          {!loading && <ArrowRight className="h-5 w-5" />}
+        </button>
+
+        <p className="text-center text-xs leading-relaxed text-gray-400">
+          By signing up you agree to our{" "}
+          <Link href="/terms" className="underline hover:text-gray-600">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-gray-600">
+            Privacy Policy
+          </Link>
+          .
         </p>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   );
 }

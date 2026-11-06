@@ -1,17 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BookOpen } from "lucide-react";
 import { site } from "@/lib/site";
 
 /** Header and footer for the public information pages (about, help, legal, account recovery). */
 export function PublicShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      <header className="border-b border-gray-100 bg-white">
+      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/90 backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <BookOpen className="h-6 w-6 text-primary-600" />
-            <span className="font-bold text-gray-900">{site.name}</span>
+          <Link href="/" aria-label={`${site.name} home`} className="flex items-center">
+            <Image src="/logos/educore-logo.svg" alt={site.name} width={150} height={44} priority className="h-9 w-auto" />
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/grades" className="hidden text-gray-600 hover:text-gray-900 sm:inline">
@@ -20,8 +19,14 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link href="/pricing" className="hidden text-gray-600 hover:text-gray-900 sm:inline">
               Pricing
             </Link>
-            <Link href="/login" className="font-medium text-primary-600 hover:text-primary-700">
+            <Link href="/login" className="font-semibold text-gray-700 hover:text-primary-800">
               Log in
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-xl bg-accent-500 px-4 py-2 font-bold text-white shadow-sm transition-colors hover:bg-accent-600"
+            >
+              Sign up free
             </Link>
           </nav>
         </div>
